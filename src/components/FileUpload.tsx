@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, Download, AlertCircle } from "lucide-react";
+import { Upload, FileText, Download, AlertCircle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FileUploadProps {
@@ -18,6 +18,7 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [csvStructure, setCsvStructure] = useState<any>(null);
   const { toast } = useToast();
 
   const validateFile = (file: File): boolean => {
@@ -30,10 +31,10 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
       return false;
     }
 
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
       toast({
         title: "File too large",
-        description: "Please upload a file smaller than 5MB.",
+        description: "Please upload a file smaller than 10MB.",
         variant: "destructive",
       });
       return false;
@@ -42,14 +43,35 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
     return true;
   };
 
-  const handleFileSelect = useCallback((file: File) => {
+  const analyzeFile = async (file: File) => {
+    try {
+      const csvText = await file.text();
+      const { analyzeCsvStructure } = await import('@/utils/csvProcessor');
+      const structure = analyzeCsvStructure(csvText);
+      setCsvStructure(structure);
+      
+      if (structure && structure.detectedStructure.isValid) {
+        toast({
+          title: "CSV structure detected",
+          description: `Found ${structure.headers.length} columns. Ready for processing.`,
+        });
+      } else {
+        toast({
+          title: "CSV structure analysis",
+          description: "Could not detect standard bank format. Will attempt to process anyway.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error analyzing CSV:', error);
+    }
+  };
+
+  const handleFileSelect = useCallback(async (file: File) => {
     if (!validateFile(file)) return;
     
     setSelectedFile(file);
-    toast({
-      title: "File selected",
-      description: `${file.name} is ready for processing.`,
-    });
+    await analyzeFile(file);
   }, [toast]);
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -111,14 +133,14 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
       
       // Validate CSV format
       if (!validateCsvFormat(csvText)) {
-        throw new Error("Invalid CSV format. Please ensure your file has the correct headers: Date, Description, Amount, Category");
+        throw new Error("CSV format not recognized. Please ensure your file has Date, Description, and Amount (or Debit/Credit) columns with recognizable headers.");
       }
       
       // Parse transactions from CSV
       const transactions = parseCsv(csvText);
       
       if (transactions.length === 0) {
-        throw new Error("No valid transactions found in the CSV file. Please check the file format.");
+        throw new Error("No valid transactions found in the CSV file. Please check the file format and data.");
       }
       
       // Complete progress
@@ -134,6 +156,7 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
 
       // Reset state
       setSelectedFile(null);
+      setCsvStructure(null);
       
     } catch (error) {
       console.error('CSV processing error:', error);
@@ -168,6 +191,25 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
     window.URL.revokeObjectURL(url);
   };
 
+  const downloadBankSampleCsv = () => {
+    const bankSampleCsv = `Trans. Date,Value Date,NARRATION,Debit,Credit
+2024-01-15,2024-01-15,SALARY CREDIT - COMPANY XYZ,,3000.00
+2024-01-16,2024-01-16,POS PURCHASE - GROCERY MART,85.50,
+2024-01-17,2024-01-17,ATM WITHDRAWAL - MAIN STREET,45.00,
+2024-01-18,2024-01-18,ONLINE PAYMENT - NETFLIX,12.99,
+2024-01-19,2024-01-19,CARD PAYMENT - RESTAURANT ABC,67.25,`;
+
+    const blob = new Blob([bankSampleCsv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bank_statement_sample.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
   return (
     <Card className="shadow-card">
       <CardHeader>
@@ -176,7 +218,7 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
           CSV File Upload
         </CardTitle>
         <CardDescription>
-          Upload your bank statement CSV to automatically analyze transactions
+          Upload your bank statement CSV to automatically analyze transactions. Supports various bank formats.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -224,7 +266,7 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
                       Drop your CSV here or click to browse
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      Supports CSV files up to 5MB
+                      Supports CSV files up to 10MB
                     </div>
                   </div>
                 </>
@@ -232,6 +274,36 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
             </div>
           </label>
         </div>
+
+        {/* CSV Structure Analysis */}
+        {csvStructure && (
+          <div className="p-3 bg-muted/50 rounded-lg">
+            <div className="flex items-start gap-2">
+              <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+              <div className="text-xs">
+                <p className="font-medium mb-1">Detected CSV Structure:</p>
+                <p className="text-muted-foreground mb-2">
+                  Headers: {csvStructure.headers.join(', ')}
+                </p>
+                {csvStructure.detectedStructure.isValid ? (
+                  <div className="text-green-600">
+                    ✓ Compatible format detected
+                    {csvStructure.detectedStructure.hasSeparateColumns && (
+                      <span className="block">• Found separate Debit/Credit columns</span>
+                    )}
+                    {csvStructure.detectedStructure.hasSingleAmount && (
+                      <span className="block">• Found single Amount column</span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-amber-600">
+                    ⚠ Non-standard format - will attempt to process
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Progress Bar */}
         {isProcessing && (
@@ -257,15 +329,18 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
           {selectedFile && !isProcessing && (
             <Button 
               variant="outline" 
-              onClick={() => setSelectedFile(null)}
+              onClick={() => {
+                setSelectedFile(null);
+                setCsvStructure(null);
+              }}
             >
               Clear
             </Button>
           )}
         </div>
 
-        {/* Sample CSV Download */}
-        <div className="flex justify-center">
+        {/* Sample CSV Downloads */}
+        <div className="flex justify-center gap-4">
           <Button 
             variant="ghost" 
             size="sm"
@@ -273,7 +348,16 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
             className="text-muted-foreground hover:text-foreground"
           >
             <Download className="h-4 w-4 mr-2" />
-            Download Sample CSV
+            Standard Sample
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={downloadBankSampleCsv}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Bank Format Sample
           </Button>
         </div>
 
@@ -281,13 +365,16 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
         <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg">
           <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
           <div className="text-xs text-muted-foreground">
-            <p className="font-medium mb-1">CSV Format Requirements:</p>
+            <p className="font-medium mb-1">Supported Bank Formats:</p>
             <ul className="space-y-1">
-              <li>• Headers: Date, Description, Amount, Category</li>
-              <li>• Date format: YYYY-MM-DD (e.g., 2024-01-15)</li>
-              <li>• Amount: Positive for income, negative for expenses</li>
-              <li>• Category: Any text (will be auto-categorized if empty)</li>
+              <li>• <strong>Date columns:</strong> Date, Trans Date, Value Date, Transaction Date</li>
+              <li>• <strong>Description columns:</strong> Description, Remarks, Narration, Details</li>
+              <li>• <strong>Amount formats:</strong> Single Amount column OR separate Debit/Credit columns</li>
+              <li>• <strong>Optional:</strong> Category, Type, Classification columns</li>
             </ul>
+            <p className="mt-2 text-amber-600">
+              💡 The system automatically detects your bank's CSV format and processes accordingly.
+            </p>
           </div>
         </div>
       </CardContent>

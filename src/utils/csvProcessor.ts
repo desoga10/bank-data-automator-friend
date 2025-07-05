@@ -10,6 +10,32 @@ const categories = [
   "Dining", "Subscriptions", "Miscellaneous"
 ];
 
+// Common header variations for different banks
+const HEADER_MAPPINGS = {
+  date: [
+    'date', 'trans date', 'transaction date', 'value date', 'posting date',
+    'trans. date', 'txn date', 'effective date', 'process date'
+  ],
+  description: [
+    'description', 'remarks', 'narration', 'transaction details', 'details',
+    'memo', 'reference', 'particulars', 'transaction description', 'desc'
+  ],
+  debit: [
+    'debit', 'debit amount', 'withdrawal', 'outgoing', 'paid out',
+    'debits', 'debit amt', 'withdrawal amount', 'outflow'
+  ],
+  credit: [
+    'credit', 'credit amount', 'deposit', 'incoming', 'paid in',
+    'credits', 'credit amt', 'deposit amount', 'inflow'
+  ],
+  amount: [
+    'amount', 'transaction amount', 'txn amount', 'amt', 'value'
+  ],
+  category: [
+    'category', 'type', 'transaction type', 'classification', 'class'
+  ]
+};
+
 export const categorizeTransaction = (description: string): string => {
   const desc = description.toLowerCase();
   
@@ -24,16 +50,52 @@ export const categorizeTransaction = (description: string): string => {
   return "Miscellaneous";
 };
 
+const findHeaderIndex = (headers: string[], mappings: string[]): number => {
+  const normalizedHeaders = headers.map(h => h.toLowerCase().trim());
+  
+  for (const mapping of mappings) {
+    const index = normalizedHeaders.findIndex(h => 
+      h === mapping || 
+      h.includes(mapping) || 
+      mapping.includes(h)
+    );
+    if (index !== -1) return index;
+  }
+  
+  return -1;
+};
+
+const detectHeaderStructure = (headers: string[]) => {
+  const structure = {
+    dateIndex: findHeaderIndex(headers, HEADER_MAPPINGS.date),
+    descriptionIndex: findHeaderIndex(headers, HEADER_MAPPINGS.description),
+    debitIndex: findHeaderIndex(headers, HEADER_MAPPINGS.debit),
+    creditIndex: findHeaderIndex(headers, HEADER_MAPPINGS.credit),
+    amountIndex: findHeaderIndex(headers, HEADER_MAPPINGS.amount),
+    categoryIndex: findHeaderIndex(headers, HEADER_MAPPINGS.category),
+  };
+
+  // Determine if we have separate debit/credit columns or a single amount column
+  const hasSeparateColumns = structure.debitIndex !== -1 && structure.creditIndex !== -1;
+  const hasSingleAmount = structure.amountIndex !== -1;
+
+  return {
+    ...structure,
+    hasSeparateColumns,
+    hasSingleAmount,
+    isValid: structure.dateIndex !== -1 && structure.descriptionIndex !== -1 && 
+             (hasSeparateColumns || hasSingleAmount)
+  };
+};
+
 export const validateCsvFormat = (csvText: string): boolean => {
   const lines = csvText.trim().split('\n');
   if (lines.length < 2) return false; // Need at least header + 1 data row
   
-  const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
-  const requiredHeaders = ['date', 'description', 'amount'];
+  const headers = lines[0].split(',').map(h => h.trim());
+  const structure = detectHeaderStructure(headers);
   
-  return requiredHeaders.every(header => 
-    headers.some(h => h.includes(header))
-  );
+  return structure.isValid;
 };
 
 export const parseCsv = (csvText: string): Transaction[] => {
@@ -42,15 +104,12 @@ export const parseCsv = (csvText: string): Transaction[] => {
   
   if (lines.length < 2) return transactions;
   
-  // Parse headers
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-  const dateIndex = headers.findIndex(h => h.includes('date'));
-  const descriptionIndex = headers.findIndex(h => h.includes('description'));
-  const amountIndex = headers.findIndex(h => h.includes('amount'));
-  const categoryIndex = headers.findIndex(h => h.includes('category'));
+  // Parse headers and detect structure
+  const headers = lines[0].split(',').map(h => h.trim());
+  const structure = detectHeaderStructure(headers);
   
-  if (dateIndex === -1 || descriptionIndex === -1 || amountIndex === -1) {
-    throw new Error('CSV must contain Date, Description, and Amount columns');
+  if (!structure.isValid) {
+    throw new Error('CSV format not recognized. Please ensure your file has Date, Description, and Amount (or Debit/Credit) columns');
   }
   
   // Parse data rows
@@ -59,25 +118,49 @@ export const parseCsv = (csvText: string): Transaction[] => {
     if (!line) continue;
     
     const values = parseCsvLine(line);
-    if (values.length <= Math.max(dateIndex, descriptionIndex, amountIndex)) continue;
+    if (values.length <= Math.max(...Object.values(structure).filter(v => typeof v === 'number' && v !== -1))) continue;
     
-    const date = parseDate(values[dateIndex]);
-    const description = values[descriptionIndex].replace(/^"|"$/g, '').replace(/""/g, '"').trim();
-    const amount = parseAmount(values[amountIndex]);
-    let category = categoryIndex !== -1 && values[categoryIndex] 
-      ? values[categoryIndex].replace(/^"|"$/g, '').trim()
-      : '';
-    
-    if (!category) {
-      category = categorizeTransaction(description);
-    }
-    
-    if (date && description && !isNaN(amount)) {
-      transactions.push({ date, description, amount, category });
+    try {
+      const date = parseDate(values[structure.dateIndex]);
+      const description = cleanValue(values[structure.descriptionIndex]);
+      
+      let amount = 0;
+      
+      if (structure.hasSeparateColumns) {
+        // Handle separate debit/credit columns
+        const debitValue = structure.debitIndex !== -1 ? parseAmount(values[structure.debitIndex]) : 0;
+        const creditValue = structure.creditIndex !== -1 ? parseAmount(values[structure.creditIndex]) : 0;
+        
+        // Credit is positive (income), Debit is negative (expense)
+        amount = creditValue - debitValue;
+      } else if (structure.hasSingleAmount) {
+        // Handle single amount column
+        amount = parseAmount(values[structure.amountIndex]);
+      }
+      
+      let category = '';
+      if (structure.categoryIndex !== -1 && values[structure.categoryIndex]) {
+        category = cleanValue(values[structure.categoryIndex]);
+      }
+      
+      if (!category) {
+        category = categorizeTransaction(description);
+      }
+      
+      if (date && description && !isNaN(amount)) {
+        transactions.push({ date, description, amount, category });
+      }
+    } catch (error) {
+      console.warn(`Skipping invalid row ${i + 1}:`, error);
+      continue;
     }
   }
   
   return transactions;
+};
+
+const cleanValue = (value: string): string => {
+  return value.replace(/^"|"$/g, '').replace(/""/g, '"').trim();
 };
 
 const parseCsvLine = (line: string): string[] => {
@@ -226,6 +309,7 @@ const parseDate = (dateStr: string): string | null => {
       /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/, // MM/DD/YYYY or MM-DD-YYYY
       /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/, // MM/DD/YY or MM-DD-YY
       /^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/, // YYYY/MM/DD or YYYY-MM-DD
+      /^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/, // DD/MM/YYYY or DD-MM-YYYY
     ];
     
     for (const format of formats) {
@@ -237,8 +321,11 @@ const parseDate = (dateStr: string): string | null => {
         if (part1.length === 4) {
           // YYYY-MM-DD format
           return `${part1}-${part2.padStart(2, '0')}-${part3.padStart(2, '0')}`;
+        } else if (part3.length === 4) {
+          // MM/DD/YYYY or DD/MM/YYYY format - assume MM/DD/YYYY for US banks
+          return `${part3}-${part1.padStart(2, '0')}-${part2.padStart(2, '0')}`;
         } else {
-          // MM/DD/YYYY or MM/DD/YY format
+          // MM/DD/YY or DD/MM/YY format
           let year = part3;
           if (year.length === 2) {
             year = parseInt(year) > 50 ? `19${year}` : `20${year}`;
@@ -256,6 +343,8 @@ const parseDate = (dateStr: string): string | null => {
 
 const parseAmount = (amountStr: string): number => {
   try {
+    if (!amountStr || amountStr.trim() === '') return 0;
+    
     // Remove currency symbols and clean up
     let cleanAmount = amountStr.replace(/[\$,\s]/g, '');
     
@@ -264,9 +353,11 @@ const parseAmount = (amountStr: string): number => {
     cleanAmount = cleanAmount.replace(/[\-\(\)]/g, '');
     
     const amount = parseFloat(cleanAmount);
+    if (isNaN(amount)) return 0;
+    
     return isNegative ? -amount : amount;
   } catch (error) {
-    return NaN;
+    return 0;
   }
 };
 
@@ -285,4 +376,19 @@ export const convertToCsv = (transactions: Transaction[]): string => {
   });
   
   return csvRows.join('\n');
+};
+
+// Helper function to analyze CSV structure for debugging
+export const analyzeCsvStructure = (csvText: string): any => {
+  const lines = csvText.trim().split('\n');
+  if (lines.length < 1) return null;
+  
+  const headers = lines[0].split(',').map(h => h.trim());
+  const structure = detectHeaderStructure(headers);
+  
+  return {
+    headers,
+    detectedStructure: structure,
+    sampleRow: lines.length > 1 ? lines[1].split(',') : null
+  };
 };
