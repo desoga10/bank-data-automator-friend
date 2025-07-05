@@ -1,0 +1,256 @@
+import { useState, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
+import { Upload, FileText, Download, AlertCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface FileUploadProps {
+  onFileProcessed: (csvData: string, fileName: string) => void;
+  onProcessingStart: () => void;
+  onProcessingEnd: () => void;
+}
+
+export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd }: FileUploadProps) => {
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const { toast } = useToast();
+
+  const validateFile = (file: File): boolean => {
+    if (file.type !== 'application/pdf') {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a PDF file.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      toast({
+        title: "File too large",
+        description: "Please upload a file smaller than 10MB.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleFileSelect = useCallback((file: File) => {
+    if (!validateFile(file)) return;
+    
+    setSelectedFile(file);
+    toast({
+      title: "File selected",
+      description: `${file.name} is ready for processing.`,
+    });
+  }, [toast]);
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleFileSelect(files[0]);
+    }
+  }, [handleFileSelect]);
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  }, []);
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileSelect(files[0]);
+    }
+  };
+
+  const processFile = async () => {
+    if (!selectedFile) return;
+
+    setIsProcessing(true);
+    onProcessingStart();
+    setUploadProgress(0);
+
+    try {
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      // Import PDF processing utilities
+      const { extractTextFromPDF, parseStatementText, convertToCsv } = await import('@/utils/pdfProcessor');
+      
+      // Extract text from PDF
+      const extractedText = await extractTextFromPDF(selectedFile);
+      
+      // Parse transactions from text
+      const transactions = parseStatementText(extractedText);
+      
+      if (transactions.length === 0) {
+        throw new Error("No transactions found in the PDF. Please check the file format.");
+      }
+      
+      // Convert to CSV
+      const csvData = convertToCsv(transactions);
+      
+      // Complete progress
+      setUploadProgress(100);
+      
+      // Call the callback with processed data
+      onFileProcessed(csvData, selectedFile.name);
+      
+      toast({
+        title: "File processed successfully",
+        description: `Extracted ${transactions.length} transactions from ${selectedFile.name}`,
+      });
+
+      // Reset state
+      setSelectedFile(null);
+      
+    } catch (error) {
+      console.error('PDF processing error:', error);
+      toast({
+        title: "Processing failed",
+        description: error instanceof Error ? error.message : "Failed to process the PDF file.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+      onProcessingEnd();
+      setTimeout(() => setUploadProgress(0), 1000);
+    }
+  };
+
+  return (
+    <Card className="shadow-card">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Upload className="h-5 w-5" />
+          PDF File Upload
+        </CardTitle>
+        <CardDescription>
+          Upload your bank statement PDF to automatically extract and analyze transactions
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Drag and Drop Area */}
+        <div
+          className={cn(
+            "border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200",
+            isDragOver 
+              ? "border-primary bg-primary/5 scale-105" 
+              : "border-muted hover:border-primary/50 hover:bg-muted/50",
+            selectedFile && "border-success bg-success/5"
+          )}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+        >
+          <Input
+            type="file"
+            accept=".pdf"
+            onChange={handleFileInputChange}
+            className="hidden"
+            id="pdf-upload"
+            disabled={isProcessing}
+          />
+          
+          <label htmlFor="pdf-upload" className="cursor-pointer block">
+            <div className="space-y-3">
+              {selectedFile ? (
+                <>
+                  <FileText className="h-12 w-12 mx-auto text-success" />
+                  <div>
+                    <div className="text-lg font-medium text-success">
+                      {selectedFile.name}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-12 w-12 mx-auto text-muted-foreground" />
+                  <div>
+                    <div className="text-lg font-medium">
+                      Drop your PDF here or click to browse
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Supports PDF files up to 10MB
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </label>
+        </div>
+
+        {/* Progress Bar */}
+        {isProcessing && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Processing PDF...</span>
+              <span>{uploadProgress}%</span>
+            </div>
+            <Progress value={uploadProgress} className="w-full" />
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex gap-2">
+          <Button 
+            onClick={processFile}
+            disabled={!selectedFile || isProcessing}
+            className="flex-1 bg-gradient-primary hover:shadow-elegant transition-all duration-300"
+          >
+            {isProcessing ? "Processing..." : "Process PDF"}
+          </Button>
+          
+          {selectedFile && !isProcessing && (
+            <Button 
+              variant="outline" 
+              onClick={() => setSelectedFile(null)}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+
+        {/* Help Text */}
+        <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg">
+          <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+          <div className="text-xs text-muted-foreground">
+            <p className="font-medium mb-1">Supported formats:</p>
+            <ul className="space-y-1">
+              <li>• Bank statements in PDF format</li>
+              <li>• Transaction data with dates, descriptions, and amounts</li>
+              <li>• Files up to 10MB in size</li>
+            </ul>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
