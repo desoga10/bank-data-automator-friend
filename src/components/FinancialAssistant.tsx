@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { FileUpload } from "@/components/FileUpload";
 import { DataAnalyzer } from "@/components/DataAnalyzer";
-import { parseStatementText, convertToCsv, parseCsv, Transaction } from "@/utils/pdfProcessor";
+import { parseStatementText, convertToCsv, parseCsv, Transaction } from "@/utils/csvProcessor";
 
 export const FinancialAssistant = () => {
   const [statementText, setStatementText] = useState("");
@@ -107,7 +107,7 @@ export const FinancialAssistant = () => {
           <div className="space-y-6">
             <Tabs defaultValue="upload" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="upload">PDF Upload</TabsTrigger>
+                <TabsTrigger value="upload">CSV Upload</TabsTrigger>
                 <TabsTrigger value="text">Text Input</TabsTrigger>
               </TabsList>
               

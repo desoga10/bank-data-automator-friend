@@ -1,8 +1,3 @@
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.js', import.meta.url).href;
-
 export interface Transaction {
   date: string;
   description: string;
@@ -29,26 +24,92 @@ export const categorizeTransaction = (description: string): string => {
   return "Miscellaneous";
 };
 
-export const extractTextFromPDF = async (file: File): Promise<string> => {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let extractedText = '';
+export const validateCsvFormat = (csvText: string): boolean => {
+  const lines = csvText.trim().split('\n');
+  if (lines.length < 2) return false; // Need at least header + 1 data row
+  
+  const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+  const requiredHeaders = ['date', 'description', 'amount'];
+  
+  return requiredHeaders.every(header => 
+    headers.some(h => h.includes(header))
+  );
+};
+
+export const parseCsv = (csvText: string): Transaction[] => {
+  const lines = csvText.trim().split('\n');
+  const transactions: Transaction[] = [];
+  
+  if (lines.length < 2) return transactions;
+  
+  // Parse headers
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+  const dateIndex = headers.findIndex(h => h.includes('date'));
+  const descriptionIndex = headers.findIndex(h => h.includes('description'));
+  const amountIndex = headers.findIndex(h => h.includes('amount'));
+  const categoryIndex = headers.findIndex(h => h.includes('category'));
+  
+  if (dateIndex === -1 || descriptionIndex === -1 || amountIndex === -1) {
+    throw new Error('CSV must contain Date, Description, and Amount columns');
+  }
+  
+  // Parse data rows
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
     
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
-      extractedText += pageText + '\n';
+    const values = parseCsvLine(line);
+    if (values.length <= Math.max(dateIndex, descriptionIndex, amountIndex)) continue;
+    
+    const date = parseDate(values[dateIndex]);
+    const description = values[descriptionIndex].replace(/^"|"$/g, '').replace(/""/g, '"').trim();
+    const amount = parseAmount(values[amountIndex]);
+    let category = categoryIndex !== -1 && values[categoryIndex] 
+      ? values[categoryIndex].replace(/^"|"$/g, '').trim()
+      : '';
+    
+    if (!category) {
+      category = categorizeTransaction(description);
     }
     
-    return extractedText;
-  } catch (error) {
-    console.error('PDF extraction error:', error);
-    throw new Error('Failed to extract text from PDF. Please ensure the file is a valid PDF.');
+    if (date && description && !isNaN(amount)) {
+      transactions.push({ date, description, amount, category });
+    }
   }
+  
+  return transactions;
+};
+
+const parseCsvLine = (line: string): string[] => {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        // Escaped quote
+        current += '"';
+        i++; // Skip next quote
+      } else {
+        // Toggle quote state
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // End of field
+      values.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  // Add the last field
+  values.push(current.trim());
+  
+  return values;
 };
 
 export const parseStatementText = (text: string): Transaction[] => {
@@ -59,7 +120,6 @@ export const parseStatementText = (text: string): Transaction[] => {
   const parsedTransactions = [
     ...parseStructuredFormat(lines),
     ...parseTabularFormat(text),
-    ...parseCommonBankFormats(text)
   ];
   
   // Remove duplicates based on date, description, and amount
@@ -156,15 +216,6 @@ const parseTabularFormat = (text: string): Transaction[] => {
   return transactions;
 };
 
-const parseCommonBankFormats = (text: string): Transaction[] => {
-  const transactions: Transaction[] = [];
-  
-  // Add more sophisticated parsing for common bank statement formats
-  // This is a placeholder for more advanced parsing logic
-  
-  return transactions;
-};
-
 const parseDate = (dateStr: string): string | null => {
   try {
     // Remove any extra characters
@@ -234,29 +285,4 @@ export const convertToCsv = (transactions: Transaction[]): string => {
   });
   
   return csvRows.join('\n');
-};
-
-export const parseCsv = (csvText: string): Transaction[] => {
-  const lines = csvText.trim().split('\n');
-  const transactions: Transaction[] = [];
-  
-  // Skip header row
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    
-    const values = line.split(',');
-    if (values.length >= 4) {
-      const date = values[0].trim();
-      const description = values[1].replace(/^"|"$/g, '').replace(/""/g, '"'); // Unescape quotes
-      const amount = parseFloat(values[2].trim());
-      const category = values[3].trim();
-      
-      if (date && description && !isNaN(amount)) {
-        transactions.push({ date, description, amount, category });
-      }
-    }
-  }
-  
-  return transactions;
 };

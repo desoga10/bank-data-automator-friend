@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, TrendingUp, TrendingDown, DollarSign, Calendar } from "lucide-react";
-import { Transaction } from "@/utils/pdfProcessor";
+import { Transaction } from "@/utils/csvProcessor";
 
 interface DataAnalyzerProps {
   transactions: Transaction[];
@@ -101,7 +101,7 @@ export const DataAnalyzer = ({ transactions, csvData, fileName }: DataAnalyzerPr
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${fileName.replace('.pdf', '')}_transactions.csv`;
+    a.download = `${fileName.replace('.csv', '')}_analyzed.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -337,7 +337,7 @@ export const DataAnalyzer = ({ transactions, csvData, fileName }: DataAnalyzerPr
                 </Button>
               </CardTitle>
               <CardDescription>
-                Complete list of parsed transactions from {fileName}
+                Complete list of transactions from {fileName}
               </CardDescription>
             </CardHeader>
             <CardContent>

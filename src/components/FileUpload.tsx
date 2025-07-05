@@ -21,19 +21,19 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
   const { toast } = useToast();
 
   const validateFile = (file: File): boolean => {
-    if (file.type !== 'application/pdf') {
+    if (file.type !== 'text/csv' && !file.name.toLowerCase().endsWith('.csv')) {
       toast({
         title: "Invalid file type",
-        description: "Please upload a PDF file.",
+        description: "Please upload a CSV file.",
         variant: "destructive",
       });
       return false;
     }
 
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
       toast({
         title: "File too large",
-        description: "Please upload a file smaller than 10MB.",
+        description: "Please upload a file smaller than 5MB.",
         variant: "destructive",
       });
       return false;
@@ -98,41 +98,48 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
         });
       }, 200);
 
-      // Import PDF processing utilities
-      const { extractTextFromPDF, parseStatementText, convertToCsv } = await import('@/utils/pdfProcessor');
+      // Read the CSV file
+      const csvText = await selectedFile.text();
       
-      // Extract text from PDF
-      const extractedText = await extractTextFromPDF(selectedFile);
+      // Validate CSV format
+      if (!csvText.trim()) {
+        throw new Error("The CSV file appears to be empty.");
+      }
+
+      // Import CSV processing utilities
+      const { parseCsv, validateCsvFormat } = await import('@/utils/csvProcessor');
       
-      // Parse transactions from text
-      const transactions = parseStatementText(extractedText);
-      
-      if (transactions.length === 0) {
-        throw new Error("No transactions found in the PDF. Please check the file format.");
+      // Validate CSV format
+      if (!validateCsvFormat(csvText)) {
+        throw new Error("Invalid CSV format. Please ensure your file has the correct headers: Date, Description, Amount, Category");
       }
       
-      // Convert to CSV
-      const csvData = convertToCsv(transactions);
+      // Parse transactions from CSV
+      const transactions = parseCsv(csvText);
+      
+      if (transactions.length === 0) {
+        throw new Error("No valid transactions found in the CSV file. Please check the file format.");
+      }
       
       // Complete progress
       setUploadProgress(100);
       
       // Call the callback with processed data
-      onFileProcessed(csvData, selectedFile.name);
+      onFileProcessed(csvText, selectedFile.name);
       
       toast({
         title: "File processed successfully",
-        description: `Extracted ${transactions.length} transactions from ${selectedFile.name}`,
+        description: `Loaded ${transactions.length} transactions from ${selectedFile.name}`,
       });
 
       // Reset state
       setSelectedFile(null);
       
     } catch (error) {
-      console.error('PDF processing error:', error);
+      console.error('CSV processing error:', error);
       toast({
         title: "Processing failed",
-        description: error instanceof Error ? error.message : "Failed to process the PDF file.",
+        description: error instanceof Error ? error.message : "Failed to process the CSV file.",
         variant: "destructive",
       });
     } finally {
@@ -142,15 +149,34 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
     }
   };
 
+  const downloadSampleCsv = () => {
+    const sampleCsv = `Date,Description,Amount,Category
+2024-01-15,Salary Deposit,3000.00,Salary
+2024-01-16,Grocery Store,-85.50,Groceries
+2024-01-17,Gas Station,-45.00,Transport
+2024-01-18,Netflix Subscription,-12.99,Subscriptions
+2024-01-19,Restaurant Dinner,-67.25,Dining`;
+
+    const blob = new Blob([sampleCsv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sample_transactions.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
   return (
     <Card className="shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Upload className="h-5 w-5" />
-          PDF File Upload
+          CSV File Upload
         </CardTitle>
         <CardDescription>
-          Upload your bank statement PDF to automatically extract and analyze transactions
+          Upload your bank statement CSV to automatically analyze transactions
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -169,14 +195,14 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
         >
           <Input
             type="file"
-            accept=".pdf"
+            accept=".csv"
             onChange={handleFileInputChange}
             className="hidden"
-            id="pdf-upload"
+            id="csv-upload"
             disabled={isProcessing}
           />
           
-          <label htmlFor="pdf-upload" className="cursor-pointer block">
+          <label htmlFor="csv-upload" className="cursor-pointer block">
             <div className="space-y-3">
               {selectedFile ? (
                 <>
@@ -186,7 +212,7 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
                       {selectedFile.name}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      {(selectedFile.size / 1024).toFixed(2)} KB
                     </div>
                   </div>
                 </>
@@ -195,10 +221,10 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
                   <Upload className="h-12 w-12 mx-auto text-muted-foreground" />
                   <div>
                     <div className="text-lg font-medium">
-                      Drop your PDF here or click to browse
+                      Drop your CSV here or click to browse
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      Supports PDF files up to 10MB
+                      Supports CSV files up to 5MB
                     </div>
                   </div>
                 </>
@@ -211,7 +237,7 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
         {isProcessing && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span>Processing PDF...</span>
+              <span>Processing CSV...</span>
               <span>{uploadProgress}%</span>
             </div>
             <Progress value={uploadProgress} className="w-full" />
@@ -225,7 +251,7 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
             disabled={!selectedFile || isProcessing}
             className="flex-1 bg-gradient-primary hover:shadow-elegant transition-all duration-300"
           >
-            {isProcessing ? "Processing..." : "Process PDF"}
+            {isProcessing ? "Processing..." : "Process CSV"}
           </Button>
           
           {selectedFile && !isProcessing && (
@@ -238,15 +264,29 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
           )}
         </div>
 
+        {/* Sample CSV Download */}
+        <div className="flex justify-center">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={downloadSampleCsv}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download Sample CSV
+          </Button>
+        </div>
+
         {/* Help Text */}
         <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg">
           <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
           <div className="text-xs text-muted-foreground">
-            <p className="font-medium mb-1">Supported formats:</p>
+            <p className="font-medium mb-1">CSV Format Requirements:</p>
             <ul className="space-y-1">
-              <li>• Bank statements in PDF format</li>
-              <li>• Transaction data with dates, descriptions, and amounts</li>
-              <li>• Files up to 10MB in size</li>
+              <li>• Headers: Date, Description, Amount, Category</li>
+              <li>• Date format: YYYY-MM-DD (e.g., 2024-01-15)</li>
+              <li>• Amount: Positive for income, negative for expenses</li>
+              <li>• Category: Any text (will be auto-categorized if empty)</li>
             </ul>
           </div>
         </div>
