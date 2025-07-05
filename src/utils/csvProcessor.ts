@@ -301,7 +301,19 @@ const parseTabularFormat = (text: string): Transaction[] => {
 
 const parseDate = (dateStr: string): string | null => {
   try {
-    // Remove any extra characters
+    // First, try to parse the date string directly with new Date()
+    const parsedDate = new Date(dateStr.trim());
+    
+    // Check if the parsed date is valid
+    if (!isNaN(parsedDate.getTime())) {
+      // Format to YYYY-MM-DD
+      const year = parsedDate.getFullYear();
+      const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(parsedDate.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    
+    // If direct parsing fails, try manual parsing with regex patterns
     const cleanDate = dateStr.replace(/[^\d\/\-]/g, '');
     
     // Try different date formats
