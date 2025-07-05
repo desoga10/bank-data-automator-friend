@@ -4,7 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import * as pdfjsLib from 'pdfjs-dist';
 
 interface Transaction {
   date: string;
@@ -13,10 +16,30 @@ interface Transaction {
   category: string;
 }
 
+// Set up PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
 const categories = [
   "Salary", "Rent", "Groceries", "Transport", "Utilities", 
   "Dining", "Subscriptions", "Miscellaneous"
 ];
+
+const extractTextFromPDF = async (file: File): Promise<string> => {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let extractedText = '';
+  
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .map((item: any) => item.str)
+      .join(' ');
+    extractedText += pageText + '\n';
+  }
+  
+  return extractedText;
+};
 
 const categorizeTransaction = (description: string): string => {
   const desc = description.toLowerCase();
@@ -79,9 +102,66 @@ const parseStatementText = (text: string): Transaction[] => {
 
 export const FinancialAssistant = () => {
   const [statementText, setStatementText] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a PDF file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedFile(file);
+  };
+
+  const handleParsePDF = async () => {
+    if (!selectedFile) {
+      toast({
+        title: "No file selected",
+        description: "Please select a PDF file first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    try {
+      const extractedText = await extractTextFromPDF(selectedFile);
+      const parsedTransactions = parseStatementText(extractedText);
+      
+      if (parsedTransactions.length === 0) {
+        toast({
+          title: "No transactions found",
+          description: "Could not find transactions in the PDF. Please check the file format.",
+          variant: "destructive",
+        });
+      } else {
+        setTransactions(parsedTransactions);
+        toast({
+          title: "PDF processed successfully",
+          description: `Found ${parsedTransactions.length} transaction${parsedTransactions.length !== 1 ? 's' : ''}.`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "PDF processing error",
+        description: "There was an error processing your PDF file.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleParseStatement = async () => {
     if (!statementText.trim()) {
@@ -163,12 +243,19 @@ export const FinancialAssistant = () => {
               📊 Bank Statement Parser
             </CardTitle>
             <CardDescription>
-              Paste your raw bank statement text below. Follow the format: Date, Description, Amount per transaction.
+              Choose your preferred input method: paste text or upload a PDF file.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Textarea
-              placeholder={`Example format:
+          <CardContent>
+            <Tabs defaultValue="text" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="text">Text Input</TabsTrigger>
+                <TabsTrigger value="pdf">PDF Upload</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="text" className="space-y-4 mt-4">
+                <Textarea
+                  placeholder={`Example format:
 
 Date: 06/01/2024
 Description: Uber Trip
@@ -181,17 +268,49 @@ Amount: -12.99
 Date: 06/05/2024
 Description: Salary June
 Amount: 3000.00`}
-              value={statementText}
-              onChange={(e) => setStatementText(e.target.value)}
-              className="min-h-[200px] font-mono"
-            />
-            <Button 
-              onClick={handleParseStatement}
-              disabled={isProcessing}
-              className="w-full bg-gradient-primary hover:shadow-elegant transition-all duration-300"
-            >
-              {isProcessing ? "Processing..." : "Parse Statement"}
-            </Button>
+                  value={statementText}
+                  onChange={(e) => setStatementText(e.target.value)}
+                  className="min-h-[200px] font-mono"
+                />
+                <Button 
+                  onClick={handleParseStatement}
+                  disabled={isProcessing}
+                  className="w-full bg-gradient-primary hover:shadow-elegant transition-all duration-300"
+                >
+                  {isProcessing ? "Processing..." : "Parse Statement"}
+                </Button>
+              </TabsContent>
+              
+              <TabsContent value="pdf" className="space-y-4 mt-4">
+                <div className="border-2 border-dashed border-muted rounded-lg p-8 text-center">
+                  <Input
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="pdf-upload"
+                  />
+                  <label htmlFor="pdf-upload" className="cursor-pointer">
+                    <div className="space-y-2">
+                      <div className="text-4xl">📄</div>
+                      <div className="text-lg font-medium">
+                        {selectedFile ? selectedFile.name : "Click to select PDF file"}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Upload your bank statement PDF file
+                      </div>
+                    </div>
+                  </label>
+                </div>
+                <Button 
+                  onClick={handleParsePDF}
+                  disabled={isProcessing || !selectedFile}
+                  className="w-full bg-gradient-primary hover:shadow-elegant transition-all duration-300"
+                >
+                  {isProcessing ? "Processing PDF..." : "Parse PDF"}
+                </Button>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
