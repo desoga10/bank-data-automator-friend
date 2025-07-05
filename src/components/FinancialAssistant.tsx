@@ -58,6 +58,48 @@ const categorizeTransaction = (description: string): string => {
   return "Miscellaneous";
 };
 
+const convertToCsv = (transactions: Transaction[]): string => {
+  const headers = ['Date', 'Description', 'Amount', 'Category'];
+  const csvRows = [headers.join(',')];
+  
+  transactions.forEach(transaction => {
+    const row = [
+      transaction.date,
+      `"${transaction.description.replace(/"/g, '""')}"`, // Escape quotes
+      transaction.amount.toString(),
+      transaction.category
+    ];
+    csvRows.push(row.join(','));
+  });
+  
+  return csvRows.join('\n');
+};
+
+const parseCsv = (csvText: string): Transaction[] => {
+  const lines = csvText.trim().split('\n');
+  const transactions: Transaction[] = [];
+  
+  // Skip header row
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    
+    const values = line.split(',');
+    if (values.length >= 4) {
+      const date = values[0].trim();
+      const description = values[1].replace(/^"|"$/g, '').replace(/""/g, '"'); // Unescape quotes
+      const amount = parseFloat(values[2].trim());
+      const category = values[3].trim();
+      
+      if (date && description && !isNaN(amount)) {
+        transactions.push({ date, description, amount, category });
+      }
+    }
+  }
+  
+  return transactions;
+};
+
 const parseStatementText = (text: string): Transaction[] => {
   const lines = text.trim().split('\n');
   const transactions: Transaction[] = [];
@@ -107,6 +149,7 @@ export const FinancialAssistant = () => {
   const [statementText, setStatementText] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [csvData, setCsvData] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
@@ -139,6 +182,7 @@ export const FinancialAssistant = () => {
     setIsProcessing(true);
     
     try {
+      // Step 1: Extract text from PDF
       const extractedText = await extractTextFromPDF(selectedFile);
       const parsedTransactions = parseStatementText(extractedText);
       
@@ -148,13 +192,21 @@ export const FinancialAssistant = () => {
           description: "Could not find transactions in the PDF. Please check the file format.",
           variant: "destructive",
         });
-      } else {
-        setTransactions(parsedTransactions);
-        toast({
-          title: "PDF processed successfully",
-          description: `Found ${parsedTransactions.length} transaction${parsedTransactions.length !== 1 ? 's' : ''}.`,
-        });
+        return;
       }
+      
+      // Step 2: Convert to CSV
+      const csvContent = convertToCsv(parsedTransactions);
+      setCsvData(csvContent);
+      
+      // Step 3: Parse CSV data for analysis
+      const csvTransactions = parseCsv(csvContent);
+      setTransactions(csvTransactions);
+      
+      toast({
+        title: "PDF processed via CSV",
+        description: `Converted to CSV and found ${csvTransactions.length} transaction${csvTransactions.length !== 1 ? 's' : ''}.`,
+      });
     } catch (error) {
       toast({
         title: "PDF processing error",
@@ -164,6 +216,20 @@ export const FinancialAssistant = () => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const downloadCsv = () => {
+    if (!csvData) return;
+    
+    const blob = new Blob([csvData], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transactions.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   };
 
   const handleParseStatement = async () => {
@@ -374,6 +440,25 @@ Amount: 3000.00`}
           </div>
         )}
 
+        {/* CSV Download */}
+        {csvData && (
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                📄 CSV Export
+              </CardTitle>
+              <CardDescription>
+                Download your transactions as a CSV file for further analysis
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={downloadCsv} variant="outline" className="w-full">
+                Download CSV File
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Results Table */}
         {transactions.length > 0 && (
           <Card className="shadow-card">
@@ -385,7 +470,7 @@ Amount: 3000.00`}
                 </Badge>
               </CardTitle>
               <CardDescription>
-                Your transactions have been automatically categorized
+                Your transactions have been automatically categorized from CSV data
               </CardDescription>
             </CardHeader>
             <CardContent>
