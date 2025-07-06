@@ -1,7 +1,7 @@
-import { FinancialAssistant } from "@/components/FinancialAssistant";
+import LandingPage from "@/components/LandingPage";
 
 const Index = () => {
-  return <FinancialAssistant />;
+  return <LandingPage />;
 };
 
 export default Index;
