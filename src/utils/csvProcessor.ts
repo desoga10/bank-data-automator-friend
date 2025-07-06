@@ -118,7 +118,8 @@ export const parseCsv = (csvText: string): Transaction[] => {
     if (!line) continue;
     
     const values = parseCsvLine(line);
-    if (values.length <= Math.max(...Object.values(structure).filter(v => typeof v === 'number' && v !== -1))) continue;
+    const indices = [structure.dateIndex, structure.descriptionIndex, structure.debitIndex, structure.creditIndex, structure.amountIndex, structure.categoryIndex].filter(v => v !== -1);
+    if (indices.length > 0 && values.length <= Math.max(...indices)) continue;
     
     try {
       const date = parseDate(values[structure.dateIndex]);
