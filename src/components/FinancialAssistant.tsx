@@ -60,6 +60,11 @@ export const FinancialAssistant = () => {
     if ((window as any).addUploadedFile) {
       (window as any).addUploadedFile(fileData);
     }
+    
+    // Trigger file manager refresh
+    if ((window as any).refreshFileManager) {
+      (window as any).refreshFileManager();
+    }
   };
 
   const handleParseStatement = async () => {
@@ -181,13 +186,14 @@ export const FinancialAssistant = () => {
                       📊 Manual Text Input
                     </CardTitle>
                     <CardDescription>
-                      Paste your bank statement data in the format shown below.
+                      Paste your bank statement data in any of the supported formats shown below.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <Textarea
-                      placeholder={`Example format:
+                      placeholder={`Supported formats:
 
+FORMAT 1 - Simple Date/Description/Amount:
 Date: 06/01/2024
 Description: Uber Trip
 Amount: -25.00
@@ -198,10 +204,30 @@ Amount: -12.99
 
 Date: 06/05/2024
 Description: Salary June
-Amount: 3000.00`}
+Amount: 3000.00
+
+FORMAT 2 - Tabular with Debit/Credit:
+Date        Description              Debit    Credit
+06/01/2024  Uber Trip               25.00    
+06/02/2024  Netflix Subscription    12.99    
+06/05/2024  Salary June                      3000.00
+
+FORMAT 3 - Bank Statement Format:
+Trans Date  Value Date  Description         Debit    Credit
+06/01/2024  06/01/2024  POS PURCHASE       25.00    
+06/02/2024  06/02/2024  ONLINE PAYMENT     12.99    
+06/05/2024  06/05/2024  SALARY CREDIT               3000.00
+
+FORMAT 4 - CSV-like Format:
+Date,Description,Amount,Category
+06/01/2024,Uber Trip,-25.00,Transport
+06/02/2024,Netflix Subscription,-12.99,Subscriptions
+06/05/2024,Salary June,3000.00,Salary
+
+Note: The system automatically detects your format and processes accordingly.`}
                       value={statementText}
                       onChange={(e) => setStatementText(e.target.value)}
-                      className="min-h-[200px] font-mono"
+                      className="min-h-[300px] font-mono text-sm"
                     />
                     <Button 
                       onClick={handleParseStatement}
