@@ -1,8 +1,9 @@
-import { Shield, Building, CheckCircle, Mail, Lock, ArrowRight } from "lucide-react";
+import { Shield, Building, CheckCircle, Lock, ArrowRight, TrendingUp, BarChart3, PieChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import dashboardPreview from "@/assets/dashboard-preview.jpg";
 
 const LandingPage = () => {
   return (
@@ -11,8 +12,8 @@ const LandingPage = () => {
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Shield className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold text-foreground">Financial Assistant</span>
+            <TrendingUp className="h-8 w-8 text-primary" />
+            <span className="text-xl font-bold text-foreground">FinanceFlow</span>
           </div>
           <nav className="flex items-center space-x-6">
             <Button variant="ghost" size="sm">Login</Button>
@@ -25,18 +26,30 @@ const LandingPage = () => {
       <section className="py-20 px-4">
         <div className="container mx-auto text-center max-w-4xl">
           <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-6">
-            The world's most trusted<br />
-            <span className="text-primary">bank statement parser</span>
+            Transform your statements into<br />
+            <span className="text-primary">actionable financial insights</span>
           </h1>
-          <p className="text-xl text-muted-foreground mb-12 max-w-2xl mx-auto">
-            Easily convert PDF bank statements from 1000s of banks worldwide into clean Excel (XLS) format with enterprise-grade security.
+          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+            Convert your bank statements into comprehensive financial analysis with intelligent categorization, spending patterns, and growth tracking.
           </p>
+          
+          {/* Dashboard Preview */}
+          <div className="mb-12 max-w-4xl mx-auto">
+            <img 
+              src={dashboardPreview} 
+              alt="Financial Dashboard Preview" 
+              className="rounded-lg shadow-elegant border border-border"
+            />
+            <p className="text-sm text-muted-foreground mt-4">
+              See how your financial data transforms into beautiful, actionable insights
+            </p>
+          </div>
           <Button 
             variant="financial" 
             size="lg" 
             className="text-lg px-8 py-6 h-auto"
           >
-            Click here to convert a PDF! <ArrowRight className="ml-2 h-5 w-5" />
+            Start Your Financial Journey <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
         </div>
       </section>
@@ -49,27 +62,27 @@ const LandingPage = () => {
               <div className="w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Shield className="h-8 w-8 text-success" />
               </div>
-              <h3 className="text-2xl font-semibold mb-4 text-foreground">Secure</h3>
+              <h3 className="text-2xl font-semibold mb-4 text-foreground">Bank-Grade Security</h3>
               <p className="text-muted-foreground">
-                With years of experience in banking we comply with strict standards when handling your files.
+                Your financial data is protected with enterprise-level encryption and never stored permanently on our servers.
               </p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-warning/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Building className="h-8 w-8 text-warning" />
+                <BarChart3 className="h-8 w-8 text-warning" />
               </div>
-              <h3 className="text-2xl font-semibold mb-4 text-foreground">Institutional</h3>
+              <h3 className="text-2xl font-semibold mb-4 text-foreground">Smart Analytics</h3>
               <p className="text-muted-foreground">
-                We've provided our services to thousands of reputable financial, accounting and legal firms.
+                Advanced AI algorithms automatically categorize transactions and identify spending patterns for deeper insights.
               </p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <CheckCircle className="h-8 w-8 text-primary" />
+                <PieChart className="h-8 w-8 text-primary" />
               </div>
-              <h3 className="text-2xl font-semibold mb-4 text-foreground">Accurate</h3>
+              <h3 className="text-2xl font-semibold mb-4 text-foreground">Comprehensive Reports</h3>
               <p className="text-muted-foreground">
-                We're continually improving our algorithms. If a file doesn't convert to your expectations, email us and we'll fix it.
+                Generate detailed financial reports with visual charts, trend analysis, and exportable formats for any purpose.
               </p>
             </div>
           </div>
@@ -80,43 +93,19 @@ const LandingPage = () => {
       <section className="py-16 px-4">
         <div className="container mx-auto max-w-4xl">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-foreground mb-4">Get Started Today</h2>
-            <p className="text-muted-foreground">Join thousands of professionals who trust us with their financial data</p>
+            <h2 className="text-3xl font-bold text-foreground mb-4">Access Your Financial Dashboard</h2>
+            <p className="text-muted-foreground">Sign in to start transforming your bank statements into insights</p>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Sign Up Form */}
-            <Card className="shadow-elegant">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="h-5 w-5 text-primary" />
-                  Create Account
-                </CardTitle>
-                <CardDescription>Get started with email and password</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" placeholder="Enter your email" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input id="password" type="password" placeholder="Create a password" />
-                </div>
-                <Button className="w-full" variant="default">
-                  Create Account
-                </Button>
-              </CardContent>
-            </Card>
-
+          <div className="max-w-md mx-auto">
             {/* Login Form */}
             <Card className="shadow-elegant">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Lock className="h-5 w-5 text-primary" />
-                  Sign In
+                  Sign In to Your Account
                 </CardTitle>
-                <CardDescription>Access your existing account</CardDescription>
+                <CardDescription>Enter your credentials to continue</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -127,7 +116,7 @@ const LandingPage = () => {
                   <Label htmlFor="login-password">Password</Label>
                   <Input id="login-password" type="password" placeholder="Enter your password" />
                 </div>
-                <Button className="w-full" variant="outline">
+                <Button className="w-full" variant="default">
                   Sign In
                 </Button>
                 <div className="relative">
@@ -159,6 +148,14 @@ const LandingPage = () => {
                   </svg>
                   Continue with Google
                 </Button>
+                <div className="text-center pt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Don't have an account?{" "}
+                    <Button variant="link" className="p-0 h-auto text-primary">
+                      Create your free account
+                    </Button>
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -169,22 +166,26 @@ const LandingPage = () => {
       <section className="py-16 px-4 bg-background">
         <div className="container mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-foreground mb-4">Choose Your Plan</h2>
-            <p className="text-muted-foreground">Flexible options for individuals and institutions</p>
+            <h2 className="text-3xl font-bold text-foreground mb-4">Flexible Pricing Plans</h2>
+            <p className="text-muted-foreground">Choose the perfect plan for your financial analysis needs</p>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             <Card className="relative">
               <CardHeader>
-                <CardTitle>Anonymous</CardTitle>
-                <CardDescription>Anonymous conversions with no need to sign up</CardDescription>
+                <CardTitle>Starter</CardTitle>
+                <CardDescription>Perfect for personal financial tracking</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold mb-4">Free</div>
                 <ul className="space-y-2 text-sm text-muted-foreground mb-6">
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-success" />
-                    1 page every 24 hours
+                    5 statements per month
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-success" />
+                    Basic categorization
                   </li>
                 </ul>
                 <Button variant="outline" className="w-full">Get Started</Button>
@@ -193,36 +194,48 @@ const LandingPage = () => {
 
             <Card className="relative border-primary">
               <CardHeader>
-                <CardTitle>Registered</CardTitle>
-                <CardDescription>Registration is free</CardDescription>
+                <CardTitle>Professional</CardTitle>
+                <CardDescription>Enhanced features for detailed analysis</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold mb-4">Free</div>
+                <div className="text-2xl font-bold mb-4">$19<span className="text-base font-normal">/month</span></div>
                 <ul className="space-y-2 text-sm text-muted-foreground mb-6">
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-success" />
-                    5 pages every 24 hours
+                    Unlimited statements
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-success" />
+                    Advanced analytics
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-success" />
+                    Custom categories
                   </li>
                 </ul>
-                <Button variant="default" className="w-full">Register</Button>
+                <Button variant="default" className="w-full">Start Free Trial</Button>
               </CardContent>
             </Card>
 
             <Card className="relative">
               <CardHeader>
-                <CardTitle>Subscribe</CardTitle>
-                <CardDescription>Subscribe to convert more documents</CardDescription>
+                <CardTitle>Enterprise</CardTitle>
+                <CardDescription>Tailored solutions for organizations</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold mb-4">Contact Us</div>
+                <div className="text-2xl font-bold mb-4">Custom</div>
                 <ul className="space-y-2 text-sm text-muted-foreground mb-6">
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-success" />
-                    Unlimited conversions
+                    Volume processing
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-success" />
-                    Priority support
+                    API integration
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-success" />
+                    Dedicated support
                   </li>
                 </ul>
                 <Button variant="success" className="w-full">Contact Sales</Button>
@@ -235,7 +248,7 @@ const LandingPage = () => {
       {/* Footer */}
       <footer className="border-t py-8 px-4">
         <div className="container mx-auto text-center">
-          <p className="text-muted-foreground">© 2024 Financial Assistant. Built with security and trust in mind.</p>
+          <p className="text-muted-foreground">© 2024 FinanceFlow. Transforming financial data into actionable insights.</p>
         </div>
       </footer>
     </div>
