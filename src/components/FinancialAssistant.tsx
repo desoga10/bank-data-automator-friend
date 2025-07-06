@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +16,56 @@ export const FinancialAssistant = () => {
   const [csvData, setCsvData] = useState<string>("");
   const [fileName, setFileName] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
   const { toast } = useToast();
+
+  // Load uploaded files from localStorage on component mount
+  useEffect(() => {
+    const loadUploadedFiles = () => {
+      const savedFiles = localStorage.getItem('uploadedFiles');
+      if (savedFiles) {
+        try {
+          const files = JSON.parse(savedFiles).map((file: any) => ({
+            ...file,
+            uploadDate: new Date(file.uploadDate)
+          }));
+          setUploadedFiles(files);
+        } catch (error) {
+          console.error('Error loading saved files:', error);
+          setUploadedFiles([]);
+        }
+      }
+    };
+
+    loadUploadedFiles();
+  }, []);
+
+  // Save uploaded files to localStorage whenever the list changes
+  useEffect(() => {
+    if (uploadedFiles.length > 0) {
+      localStorage.setItem('uploadedFiles', JSON.stringify(uploadedFiles));
+    }
+  }, [uploadedFiles]);
+
+  const addToFileManager = (csvData: string, fileName: string, type: 'pdf' | 'csv', transactionCount?: number) => {
+    const fileData = {
+      id: Date.now().toString(),
+      name: fileName,
+      type,
+      size: new Blob([csvData]).size,
+      uploadDate: new Date(),
+      csvData,
+      transactionCount
+    };
+
+    // Update the local state
+    setUploadedFiles(prev => {
+      const newFiles = [fileData, ...prev];
+      // Also save to localStorage immediately
+      localStorage.setItem('uploadedFiles', JSON.stringify(newFiles));
+      return newFiles;
+    });
+  };
 
   const handleFileProcessed = (processedCsvData: string, processedFileName: string) => {
     setCsvData(processedCsvData);
@@ -43,28 +92,6 @@ export const FinancialAssistant = () => {
       title: "PDF converted to CSV",
       description: `${convertedFileName} is now available in your file manager and CSV upload section.`,
     });
-  };
-
-  const addToFileManager = (csvData: string, fileName: string, type: 'pdf' | 'csv', transactionCount?: number) => {
-    const fileData = {
-      id: Date.now().toString(),
-      name: fileName,
-      type,
-      size: new Blob([csvData]).size,
-      uploadDate: new Date(),
-      csvData,
-      transactionCount
-    };
-
-    // Use the global function to add file to manager
-    if ((window as any).addUploadedFile) {
-      (window as any).addUploadedFile(fileData);
-    }
-    
-    // Trigger file manager refresh
-    if ((window as any).refreshFileManager) {
-      (window as any).refreshFileManager();
-    }
   };
 
   const handleParseStatement = async () => {
@@ -118,20 +145,17 @@ export const FinancialAssistant = () => {
     }
   };
 
-  const clearCurrentAnalysis = () => {
+  const handleUploadAnother = () => {
+    // Only clear the current analysis data, NOT the uploaded files
     setTransactions([]);
     setCsvData("");
     setFileName("");
     setStatementText("");
-    // Don't show the toast message here since this is used for navigation
-  };
-
-  const handleUploadAnother = () => {
-    // Clear current analysis and go back to upload section
-    clearCurrentAnalysis();
+    
+    // Don't clear uploadedFiles state - this preserves the file history
     toast({
       title: "Ready for new upload",
-      description: "You can now upload another document for analysis.",
+      description: "You can now upload another document. Your previous files are still available in the File Manager.",
     });
   };
 
@@ -141,7 +165,7 @@ export const FinancialAssistant = () => {
   };
 
   const handleFileManagerSelect = (selectedCsvData: string, selectedFileName: string) => {
-    // When selecting from file manager, just load the data without adding to file manager again
+    // When selecting from file manager, just load the data for analysis
     setCsvData(selectedCsvData);
     setFileName(selectedFileName);
     
@@ -176,7 +200,14 @@ export const FinancialAssistant = () => {
                 <TabsTrigger value="csv">CSV Upload</TabsTrigger>
                 <TabsTrigger value="pdf">PDF Upload</TabsTrigger>
                 <TabsTrigger value="text">Text Input</TabsTrigger>
-                <TabsTrigger value="files">File Manager</TabsTrigger>
+                <TabsTrigger value="files">
+                  File Manager
+                  {uploadedFiles.length > 0 && (
+                    <span className="ml-1 bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">
+                      {uploadedFiles.length}
+                    </span>
+                  )}
+                </TabsTrigger>
               </TabsList>
               
               <TabsContent value="csv" className="mt-6">
@@ -257,7 +288,11 @@ Note: The system automatically detects your format and processes accordingly.`}
               </TabsContent>
 
               <TabsContent value="files" className="mt-6">
-                <FileManager onFileSelect={handleFileManagerSelect} />
+                <FileManager 
+                  onFileSelect={handleFileManagerSelect}
+                  uploadedFiles={uploadedFiles}
+                  setUploadedFiles={setUploadedFiles}
+                />
               </TabsContent>
             </Tabs>
           </div>
@@ -270,6 +305,7 @@ Note: The system automatically detects your format and processes accordingly.`}
               fileName={fileName}
               onUploadAnother={handleUploadAnother}
               onDocumentSelect={handleDocumentSelect}
+              uploadedFiles={uploadedFiles}
             />
           </div>
         )}

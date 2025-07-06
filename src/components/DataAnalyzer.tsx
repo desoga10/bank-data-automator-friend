@@ -14,25 +14,12 @@ interface DataAnalyzerProps {
   fileName: string;
   onUploadAnother: () => void;
   onDocumentSelect: (csvData: string, fileName: string) => void;
+  uploadedFiles: any[];
 }
 
-export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother, onDocumentSelect }: DataAnalyzerProps) => {
+export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother, onDocumentSelect, uploadedFiles }: DataAnalyzerProps) => {
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'category'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
-
-  // Load uploaded files from localStorage
-  useState(() => {
-    const savedFiles = localStorage.getItem('uploadedFiles');
-    if (savedFiles) {
-      try {
-        const files = JSON.parse(savedFiles).filter((file: any) => file.csvData);
-        setUploadedFiles(files);
-      } catch (error) {
-        console.error('Error loading files:', error);
-      }
-    }
-  });
 
   const analysis = useMemo(() => {
     const totalIncome = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);

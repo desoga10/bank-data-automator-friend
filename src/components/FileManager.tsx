@@ -19,54 +19,12 @@ interface UploadedFile {
 
 interface FileManagerProps {
   onFileSelect: (csvData: string, fileName: string) => void;
+  uploadedFiles: UploadedFile[];
+  setUploadedFiles: (files: UploadedFile[]) => void;
 }
 
-export const FileManager = ({ onFileSelect }: FileManagerProps) => {
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+export const FileManager = ({ onFileSelect, uploadedFiles, setUploadedFiles }: FileManagerProps) => {
   const { toast } = useToast();
-
-  // Load files from localStorage on component mount and when refreshTrigger changes
-  useEffect(() => {
-    const loadFiles = () => {
-      const savedFiles = localStorage.getItem('uploadedFiles');
-      if (savedFiles) {
-        try {
-          const files = JSON.parse(savedFiles).map((file: any) => ({
-            ...file,
-            uploadDate: new Date(file.uploadDate)
-          }));
-          setUploadedFiles(files);
-        } catch (error) {
-          console.error('Error loading saved files:', error);
-          setUploadedFiles([]);
-        }
-      } else {
-        setUploadedFiles([]);
-      }
-    };
-
-    loadFiles();
-    
-    // Set up an interval to check for new files periodically
-    const interval = setInterval(loadFiles, 1000);
-    
-    return () => clearInterval(interval);
-  }, [refreshTrigger]);
-
-  // Save files to localStorage whenever the list changes
-  useEffect(() => {
-    if (uploadedFiles.length > 0) {
-      localStorage.setItem('uploadedFiles', JSON.stringify(uploadedFiles));
-    }
-  }, [uploadedFiles]);
-
-  const addFile = (file: UploadedFile) => {
-    const updatedFiles = [file, ...uploadedFiles];
-    setUploadedFiles(updatedFiles);
-    localStorage.setItem('uploadedFiles', JSON.stringify(updatedFiles));
-    setRefreshTrigger(prev => prev + 1);
-  };
 
   const deleteFile = (fileId: string) => {
     const updatedFiles = uploadedFiles.filter(file => file.id !== fileId);
@@ -135,22 +93,17 @@ export const FileManager = ({ onFileSelect }: FileManagerProps) => {
     );
   };
 
-  // Expose addFile function globally so other components can use it
-  useEffect(() => {
-    (window as any).addUploadedFile = addFile;
-    (window as any).refreshFileManager = () => setRefreshTrigger(prev => prev + 1);
-    return () => {
-      delete (window as any).addUploadedFile;
-      delete (window as any).refreshFileManager;
-    };
-  }, [uploadedFiles]);
-
   return (
     <Card className="shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileText className="h-5 w-5" />
           File Manager
+          {uploadedFiles.length > 0 && (
+            <Badge variant="secondary" className="ml-2">
+              {uploadedFiles.length} files
+            </Badge>
+          )}
         </CardTitle>
         <CardDescription>
           View and manage all your uploaded files. Download, delete, or load files for analysis.
