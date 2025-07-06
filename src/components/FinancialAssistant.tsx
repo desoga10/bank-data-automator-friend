@@ -5,6 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { FileUpload } from "@/components/FileUpload";
+import { PdfUpload } from "@/components/PdfUpload";
+import { FileManager } from "@/components/FileManager";
 import { DataAnalyzer } from "@/components/DataAnalyzer";
 import { parseStatementText, convertToCsv, parseCsv, Transaction } from "@/utils/csvProcessor";
 
@@ -24,10 +26,40 @@ export const FinancialAssistant = () => {
     const parsedTransactions = parseCsv(processedCsvData);
     setTransactions(parsedTransactions);
     
+    // Add to file manager
+    addToFileManager(processedCsvData, processedFileName, 'csv', parsedTransactions.length);
+    
     toast({
       title: "File processed successfully",
       description: `Found ${parsedTransactions.length} transactions in ${processedFileName}`,
     });
+  };
+
+  const handlePdfConverted = (convertedCsvData: string, convertedFileName: string) => {
+    // Add the converted CSV to file manager
+    addToFileManager(convertedCsvData, convertedFileName, 'csv');
+    
+    toast({
+      title: "PDF converted to CSV",
+      description: `${convertedFileName} is now available in your file manager and CSV upload section.`,
+    });
+  };
+
+  const addToFileManager = (csvData: string, fileName: string, type: 'pdf' | 'csv', transactionCount?: number) => {
+    const fileData = {
+      id: Date.now().toString(),
+      name: fileName,
+      type,
+      size: new Blob([csvData]).size,
+      uploadDate: new Date(),
+      csvData,
+      transactionCount
+    };
+
+    // Use the global function to add file to manager
+    if ((window as any).addUploadedFile) {
+      (window as any).addUploadedFile(fileData);
+    }
   };
 
   const handleParseStatement = async () => {
@@ -62,6 +94,9 @@ export const FinancialAssistant = () => {
         setCsvData(csvContent);
         setFileName("manual_input.txt");
         
+        // Add to file manager
+        addToFileManager(csvContent, "manual_input.csv", 'csv', parsedTransactions.length);
+        
         toast({
           title: "Statement processed successfully",
           description: `Found ${parsedTransactions.length} transaction${parsedTransactions.length !== 1 ? 's' : ''}.`,
@@ -89,6 +124,16 @@ export const FinancialAssistant = () => {
     });
   };
 
+  const handleUploadAnother = () => {
+    // Clear current data and go back to upload section
+    clearData();
+  };
+
+  const handleDocumentSelect = (selectedCsvData: string, selectedFileName: string) => {
+    // Load the selected document for analysis
+    handleFileProcessed(selectedCsvData, selectedFileName);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-subtle p-4">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -105,15 +150,25 @@ export const FinancialAssistant = () => {
         {transactions.length === 0 ? (
           /* Input Section */
           <div className="space-y-6">
-            <Tabs defaultValue="upload" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="upload">CSV Upload</TabsTrigger>
+            <Tabs defaultValue="csv" className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="csv">CSV Upload</TabsTrigger>
+                <TabsTrigger value="pdf">PDF Upload</TabsTrigger>
                 <TabsTrigger value="text">Text Input</TabsTrigger>
+                <TabsTrigger value="files">File Manager</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="upload" className="mt-6">
+              <TabsContent value="csv" className="mt-6">
                 <FileUpload
                   onFileProcessed={handleFileProcessed}
+                  onProcessingStart={() => setIsProcessing(true)}
+                  onProcessingEnd={() => setIsProcessing(false)}
+                />
+              </TabsContent>
+
+              <TabsContent value="pdf" className="mt-6">
+                <PdfUpload
+                  onPdfConverted={handlePdfConverted}
                   onProcessingStart={() => setIsProcessing(true)}
                   onProcessingEnd={() => setIsProcessing(false)}
                 />
@@ -158,27 +213,21 @@ Amount: 3000.00`}
                   </CardContent>
                 </Card>
               </TabsContent>
+
+              <TabsContent value="files" className="mt-6">
+                <FileManager onFileSelect={handleFileProcessed} />
+              </TabsContent>
             </Tabs>
           </div>
         ) : (
           /* Analysis Section */
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold">Financial Analysis</h2>
-                <p className="text-muted-foreground">
-                  Analysis of {transactions.length} transactions from {fileName}
-                </p>
-              </div>
-              <Button onClick={clearData} variant="outline">
-                Clear Data
-              </Button>
-            </div>
-            
             <DataAnalyzer 
               transactions={transactions}
               csvData={csvData}
               fileName={fileName}
+              onUploadAnother={handleUploadAnother}
+              onDocumentSelect={handleDocumentSelect}
             />
           </div>
         )}

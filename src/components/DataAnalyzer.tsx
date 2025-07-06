@@ -4,18 +4,35 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, TrendingUp, TrendingDown, DollarSign, Calendar } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Download, TrendingUp, TrendingDown, DollarSign, Calendar, Upload, FileText } from "lucide-react";
 import { Transaction } from "@/utils/csvProcessor";
 
 interface DataAnalyzerProps {
   transactions: Transaction[];
   csvData: string;
   fileName: string;
+  onUploadAnother: () => void;
+  onDocumentSelect: (csvData: string, fileName: string) => void;
 }
 
-export const DataAnalyzer = ({ transactions, csvData, fileName }: DataAnalyzerProps) => {
+export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother, onDocumentSelect }: DataAnalyzerProps) => {
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'category'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+
+  // Load uploaded files from localStorage
+  useState(() => {
+    const savedFiles = localStorage.getItem('uploadedFiles');
+    if (savedFiles) {
+      try {
+        const files = JSON.parse(savedFiles).filter((file: any) => file.csvData);
+        setUploadedFiles(files);
+      } catch (error) {
+        console.error('Error loading files:', error);
+      }
+    }
+  });
 
   const analysis = useMemo(() => {
     const totalIncome = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
@@ -139,6 +156,63 @@ export const DataAnalyzer = ({ transactions, csvData, fileName }: DataAnalyzerPr
 
   return (
     <div className="space-y-6">
+      {/* Header with Upload Another and Document Selector */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Financial Analysis</h2>
+          <p className="text-muted-foreground">
+            Analysis of {analysis.transactionCount} transactions from {fileName}
+          </p>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          {/* Document Selector */}
+          {uploadedFiles.length > 1 && (
+            <Select
+              value={fileName}
+              onValueChange={(value) => {
+                const selectedFile = uploadedFiles.find(f => f.name === value);
+                if (selectedFile && selectedFile.csvData) {
+                  onDocumentSelect(selectedFile.csvData, selectedFile.name);
+                }
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[250px]">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  <SelectValue placeholder="Select document" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {uploadedFiles.map((file) => (
+                  <SelectItem key={file.id} value={file.name}>
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      <span className="truncate">{file.name}</span>
+                      {file.transactionCount && (
+                        <Badge variant="secondary" className="text-xs ml-auto">
+                          {file.transactionCount}
+                        </Badge>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          
+          {/* Upload Another Button */}
+          <Button 
+            onClick={onUploadAnother}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Upload Another
+          </Button>
+        </div>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="shadow-card">
