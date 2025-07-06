@@ -118,25 +118,41 @@ export const FinancialAssistant = () => {
     }
   };
 
-  const clearData = () => {
+  const clearCurrentAnalysis = () => {
     setTransactions([]);
     setCsvData("");
     setFileName("");
     setStatementText("");
-    toast({
-      title: "Data cleared",
-      description: "All transaction data has been cleared.",
-    });
+    // Don't show the toast message here since this is used for navigation
   };
 
   const handleUploadAnother = () => {
-    // Clear current data and go back to upload section
-    clearData();
+    // Clear current analysis and go back to upload section
+    clearCurrentAnalysis();
+    toast({
+      title: "Ready for new upload",
+      description: "You can now upload another document for analysis.",
+    });
   };
 
   const handleDocumentSelect = (selectedCsvData: string, selectedFileName: string) => {
     // Load the selected document for analysis
     handleFileProcessed(selectedCsvData, selectedFileName);
+  };
+
+  const handleFileManagerSelect = (selectedCsvData: string, selectedFileName: string) => {
+    // When selecting from file manager, just load the data without adding to file manager again
+    setCsvData(selectedCsvData);
+    setFileName(selectedFileName);
+    
+    // Parse the CSV data to get transactions for analysis
+    const parsedTransactions = parseCsv(selectedCsvData);
+    setTransactions(parsedTransactions);
+    
+    toast({
+      title: "File loaded for analysis",
+      description: `Analyzing ${parsedTransactions.length} transactions from ${selectedFileName}`,
+    });
   };
 
   return (
@@ -241,7 +257,7 @@ Note: The system automatically detects your format and processes accordingly.`}
               </TabsContent>
 
               <TabsContent value="files" className="mt-6">
-                <FileManager onFileSelect={handleFileProcessed} />
+                <FileManager onFileSelect={handleFileManagerSelect} />
               </TabsContent>
             </Tabs>
           </div>
