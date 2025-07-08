@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, TrendingUp, TrendingDown, DollarSign, Calendar, Upload, FileText } from "lucide-react";
+import { Download, TrendingUp, TrendingDown, DollarSign, Calendar, Upload, FileText, Brain, PieChart, BarChart3 } from "lucide-react";
 import { Transaction } from "@/utils/csvProcessor";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line } from "recharts";
 
 interface DataAnalyzerProps {
   transactions: Transaction[];
@@ -269,12 +271,195 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
 
       {/* Analysis Tabs */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="charts">Charts</TabsTrigger>
+          <TabsTrigger value="insights">AI Insights</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="monthly">Monthly</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="charts" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Category Spending Chart */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <PieChart className="h-5 w-5" />
+                  Spending by Category
+                </CardTitle>
+                <CardDescription>Visual breakdown of your expense categories</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ChartContainer
+                  config={{
+                    expenses: {
+                      label: "Expenses",
+                    },
+                  }}
+                  className="h-[300px]"
+                >
+                  <RechartsPieChart>
+                    <ChartTooltip 
+                      content={<ChartTooltipContent />}
+                    />
+                    <RechartsPieChart data={Object.entries(analysis.categoryTotals)
+                      .filter(([,data]) => data.expenses > 0)
+                      .map(([category, data]) => ({
+                        category,
+                        value: data.expenses,
+                        fill: `hsl(var(--${category.toLowerCase().replace(/\s+/g, '-')}))`
+                      }))}>
+                      <Cell fill="hsl(var(--primary))" />
+                      <Cell fill="hsl(var(--destructive))" />
+                      <Cell fill="hsl(var(--warning))" />
+                      <Cell fill="hsl(var(--success))" />
+                      <Cell fill="hsl(var(--secondary))" />
+                      <Cell fill="hsl(var(--accent))" />
+                    </RechartsPieChart>
+                  </RechartsPieChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+
+            {/* Monthly Trend Chart */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Monthly Income vs Expenses
+                </CardTitle>
+                <CardDescription>Track your financial flow over time</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ChartContainer
+                  config={{
+                    income: {
+                      label: "Income",
+                      color: "hsl(var(--success))",
+                    },
+                    expenses: {
+                      label: "Expenses", 
+                      color: "hsl(var(--destructive))",
+                    },
+                  }}
+                  className="h-[300px]"
+                >
+                  <BarChart data={Object.entries(analysis.monthlyData)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([month, data]) => ({
+                      month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short' }),
+                      income: data.income,
+                      expenses: data.expenses
+                    }))}>
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="income" fill="hsl(var(--success))" />
+                    <Bar dataKey="expenses" fill="hsl(var(--destructive))" />
+                  </BarChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="insights" className="space-y-4">
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5" />
+                AI Financial Insights
+              </CardTitle>
+              <CardDescription>
+                Intelligent analysis of your spending patterns and personalized recommendations
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Spending Pattern Analysis */}
+              <div className="p-4 bg-gradient-subtle rounded-lg border">
+                <h4 className="font-semibold mb-2 text-primary">Spending Pattern Analysis</h4>
+                <div className="space-y-2 text-sm">
+                  <p>• Your largest expense category is <strong>{Object.entries(analysis.categoryTotals)
+                    .filter(([,data]) => data.expenses > 0)
+                    .sort(([,a], [,b]) => b.expenses - a.expenses)[0]?.[0] || 'N/A'}</strong> representing {
+                    Object.entries(analysis.categoryTotals)
+                    .filter(([,data]) => data.expenses > 0)
+                    .length > 0 ? 
+                    ((Object.entries(analysis.categoryTotals)
+                      .filter(([,data]) => data.expenses > 0)
+                      .sort(([,a], [,b]) => b.expenses - a.expenses)[0]?.[1]?.expenses || 0) / analysis.totalExpenses * 100).toFixed(1)
+                    : '0'
+                  }% of total expenses</p>
+                  <p>• You have {analysis.transactionCount} transactions with an average transaction amount of {formatCurrency(
+                    transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0) / transactions.length || 0
+                  )}</p>
+                  <p>• Your spending-to-income ratio is {analysis.totalIncome > 0 ? (analysis.totalExpenses / analysis.totalIncome * 100).toFixed(1) : '0'}%</p>
+                </div>
+              </div>
+
+              {/* Financial Health Score */}
+              <div className="p-4 bg-gradient-subtle rounded-lg border">
+                <h4 className="font-semibold mb-2 text-success">Financial Health Score</h4>
+                <div className="flex items-center gap-4 mb-2">
+                  <div className="text-3xl font-bold text-success">
+                    {Math.max(0, Math.min(100, Math.round(
+                      (analysis.netAmount > 0 ? 40 : 20) + 
+                      (analysis.totalExpenses / analysis.totalIncome < 0.8 ? 30 : 10) +
+                      (Object.keys(analysis.categoryTotals).length > 3 ? 20 : 10) +
+                      (analysis.transactionCount > 10 ? 10 : 5)
+                    )))}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <p>Based on income consistency, expense management, and transaction diversity</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recommendations */}
+              <div className="p-4 bg-gradient-subtle rounded-lg border">
+                <h4 className="font-semibold mb-2 text-warning">Smart Recommendations</h4>
+                <div className="space-y-2 text-sm">
+                  {analysis.netAmount < 0 && (
+                    <p>• ⚠️ Your expenses exceed income. Consider reviewing discretionary spending categories.</p>
+                  )}
+                  {Object.entries(analysis.categoryTotals)
+                    .filter(([,data]) => data.expenses > analysis.totalExpenses * 0.3)
+                    .map(([category]) => (
+                      <p key={category}>• 💡 Consider setting a budget for {category} as it represents a significant portion of your expenses.</p>
+                    ))}
+                  {analysis.totalExpenses / analysis.totalIncome > 0.8 && analysis.totalIncome > 0 && (
+                    <p>• 📊 Your spending rate is high. Aim to save at least 20% of your income for better financial stability.</p>
+                  )}
+                  {Object.keys(analysis.categoryTotals).length < 4 && (
+                    <p>• 📈 Consider diversifying your expense tracking by using more specific categories for better insights.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Trend Analysis */}
+              <div className="p-4 bg-gradient-subtle rounded-lg border">
+                <h4 className="font-semibold mb-2 text-primary">Trend Analysis</h4>
+                <div className="space-y-2 text-sm">
+                  {Object.entries(analysis.monthlyData).length > 1 && (
+                    <>
+                      <p>• 📅 Analyzing {Object.entries(analysis.monthlyData).length} months of data</p>
+                      <p>• 📊 Average monthly expenses: {formatCurrency(
+                        Object.values(analysis.monthlyData).reduce((sum, data) => sum + data.expenses, 0) / 
+                        Object.values(analysis.monthlyData).length
+                      )}</p>
+                      <p>• 💰 Average monthly income: {formatCurrency(
+                        Object.values(analysis.monthlyData).reduce((sum, data) => sum + data.income, 0) / 
+                        Object.values(analysis.monthlyData).length
+                      )}</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="overview" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
