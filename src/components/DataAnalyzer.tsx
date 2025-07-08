@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, TrendingUp, TrendingDown, DollarSign, Calendar, Upload, FileText, Brain, PieChart, BarChart3, Filter, Compare } from "lucide-react";
+import { Download, TrendingUp, TrendingDown, DollarSign, Calendar, Upload, FileText, Brain, PieChart, BarChart3, Filter, GitCompare as Compare } from "lucide-react";
 import { Transaction } from "@/utils/csvProcessor";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line, Tooltip, Legend, ComposedChart } from "recharts";
