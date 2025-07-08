@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, TrendingUp, TrendingDown, DollarSign, Calendar, Upload, FileText, Brain, PieChart, BarChart3 } from "lucide-react";
+import { Download, TrendingUp, TrendingDown, DollarSign, Calendar, Upload, FileText, Brain, PieChart, BarChart3, Filter, Compare } from "lucide-react";
 import { Transaction } from "@/utils/csvProcessor";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line, Tooltip, Legend } from "recharts";
+import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line, Tooltip, Legend, ComposedChart } from "recharts";
 
 interface DataAnalyzerProps {
   transactions: Transaction[];
@@ -19,9 +19,15 @@ interface DataAnalyzerProps {
   uploadedFiles: any[];
 }
 
+type FilterType = 'all' | 'category' | 'daily' | 'weekly' | 'monthly' | 'income' | 'expenses';
+type ComparisonPeriod = 'month' | 'quarter' | 'year';
+
 export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother, onDocumentSelect, uploadedFiles }: DataAnalyzerProps) => {
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'category'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [chartFilter, setChartFilter] = useState<FilterType>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [comparisonPeriod, setComparisonPeriod] = useState<ComparisonPeriod>('month');
 
   const analysis = useMemo(() => {
     const totalIncome = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
@@ -44,7 +50,37 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
       return acc;
     }, {} as Record<string, { total: number; count: number; income: number; expenses: number }>);
 
-    // Monthly breakdown
+    // Time-based breakdowns
+    const dailyData = transactions.reduce((acc, transaction) => {
+      const day = transaction.date; // YYYY-MM-DD
+      if (!acc[day]) {
+        acc[day] = { income: 0, expenses: 0, count: 0 };
+      }
+      if (transaction.amount > 0) {
+        acc[day].income += transaction.amount;
+      } else {
+        acc[day].expenses += Math.abs(transaction.amount);
+      }
+      acc[day].count += 1;
+      return acc;
+    }, {} as Record<string, { income: number; expenses: number; count: number }>);
+
+    const weeklyData = transactions.reduce((acc, transaction) => {
+      const date = new Date(transaction.date);
+      const weekStart = new Date(date.setDate(date.getDate() - date.getDay()));
+      const week = weekStart.toISOString().substring(0, 10);
+      if (!acc[week]) {
+        acc[week] = { income: 0, expenses: 0, count: 0 };
+      }
+      if (transaction.amount > 0) {
+        acc[week].income += transaction.amount;
+      } else {
+        acc[week].expenses += Math.abs(transaction.amount);
+      }
+      acc[week].count += 1;
+      return acc;
+    }, {} as Record<string, { income: number; expenses: number; count: number }>);
+
     const monthlyData = transactions.reduce((acc, transaction) => {
       const month = transaction.date.substring(0, 7); // YYYY-MM
       if (!acc[month]) {
@@ -75,12 +111,147 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
       totalExpenses,
       netAmount,
       categoryTotals,
+      dailyData,
+      weeklyData,
       monthlyData,
       largestExpenses,
       largestIncome,
       transactionCount: transactions.length
     };
   }, [transactions]);
+
+  const getFilteredChartData = useMemo(() => {
+    let data: any[] = [];
+    
+    switch (chartFilter) {
+      case 'category':
+        if (selectedCategory === 'all') {
+          data = Object.entries(analysis.categoryTotals).map(([category, values]) => ({
+            name: category,
+            income: values.income,
+            expenses: values.expenses,
+            net: values.total
+          }));
+        } else {
+          const categoryData = analysis.categoryTotals[selectedCategory];
+          if (categoryData) {
+            data = [{
+              name: selectedCategory,
+              income: categoryData.income,
+              expenses: categoryData.expenses,
+              net: categoryData.total
+            }];
+          }
+        }
+        break;
+      case 'daily':
+        data = Object.entries(analysis.dailyData)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, values]) => ({
+            name: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            income: values.income,
+            expenses: values.expenses,
+            net: values.income - values.expenses
+          }));
+        break;
+      case 'weekly':
+        data = Object.entries(analysis.weeklyData)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([week, values]) => ({
+            name: `Week of ${new Date(week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+            income: values.income,
+            expenses: values.expenses,
+            net: values.income - values.expenses
+          }));
+        break;
+      case 'monthly':
+        data = Object.entries(analysis.monthlyData)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([month, values]) => ({
+            name: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+            income: values.income,
+            expenses: values.expenses,
+            net: values.income - values.expenses
+          }));
+        break;
+      case 'income':
+        data = transactions
+          .filter(t => t.amount > 0)
+          .reduce((acc, t) => {
+            const category = t.category;
+            const existing = acc.find(item => item.name === category);
+            if (existing) {
+              existing.income += t.amount;
+            } else {
+              acc.push({ name: category, income: t.amount, expenses: 0, net: t.amount });
+            }
+            return acc;
+          }, [] as any[]);
+        break;
+      case 'expenses':
+        data = transactions
+          .filter(t => t.amount < 0)
+          .reduce((acc, t) => {
+            const category = t.category;
+            const existing = acc.find(item => item.name === category);
+            if (existing) {
+              existing.expenses += Math.abs(t.amount);
+            } else {
+              acc.push({ name: category, income: 0, expenses: Math.abs(t.amount), net: -Math.abs(t.amount) });
+            }
+            return acc;
+          }, [] as any[]);
+        break;
+      default:
+        data = Object.entries(analysis.monthlyData)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([month, values]) => ({
+            name: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+            income: values.income,
+            expenses: values.expenses,
+            net: values.income - values.expenses
+          }));
+    }
+    
+    return data;
+  }, [chartFilter, selectedCategory, analysis]);
+
+  const getComparisonData = useMemo(() => {
+    const data = Object.entries(analysis.monthlyData)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, values]) => {
+        const date = new Date(month + '-01');
+        return {
+          period: date.toLocaleDateString('en-US', { 
+            month: 'short', 
+            year: comparisonPeriod === 'year' ? 'numeric' : '2-digit' 
+          }),
+          income: values.income,
+          expenses: values.expenses,
+          net: values.income - values.expenses,
+          transactions: values.count
+        };
+      });
+
+    if (comparisonPeriod === 'quarter') {
+      // Group by quarters
+      const quarterData: Record<string, any> = {};
+      data.forEach(item => {
+        const date = new Date(item.period + ' 1, 2024');
+        const quarter = `Q${Math.floor(date.getMonth() / 3) + 1} ${date.getFullYear()}`;
+        if (!quarterData[quarter]) {
+          quarterData[quarter] = { period: quarter, income: 0, expenses: 0, net: 0, transactions: 0 };
+        }
+        quarterData[quarter].income += item.income;
+        quarterData[quarter].expenses += item.expenses;
+        quarterData[quarter].net += item.net;
+        quarterData[quarter].transactions += item.transactions;
+      });
+      return Object.values(quarterData);
+    }
+
+    return data;
+  }, [analysis.monthlyData, comparisonPeriod]);
 
   const sortedTransactions = useMemo(() => {
     return [...transactions].sort((a, b) => {
@@ -142,6 +313,8 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
       day: 'numeric'
     });
   };
+
+  const categories = Object.keys(analysis.categoryTotals);
 
   return (
     <div className="space-y-6">
@@ -271,9 +444,10 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
 
       {/* Analysis Tabs */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="charts">Charts</TabsTrigger>
+          <TabsTrigger value="comparison">Compare</TabsTrigger>
           <TabsTrigger value="insights">AI Insights</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="monthly">Monthly</TabsTrigger>
@@ -281,13 +455,106 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
         </TabsList>
 
         <TabsContent value="charts" className="space-y-4">
+          {/* Chart Filters */}
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Chart Filters
+              </CardTitle>
+              <CardDescription>Customize your data visualization</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium">View Type</label>
+                  <Select value={chartFilter} onValueChange={(value: FilterType) => setChartFilter(value)}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Data</SelectItem>
+                      <SelectItem value="category">By Category</SelectItem>
+                      <SelectItem value="daily">Daily Transactions</SelectItem>
+                      <SelectItem value="weekly">Weekly Summary</SelectItem>
+                      <SelectItem value="monthly">Monthly Summary</SelectItem>
+                      <SelectItem value="income">Income Only</SelectItem>
+                      <SelectItem value="expenses">Expenses Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {chartFilter === 'category' && (
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium">Category</label>
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {categories.map(category => (
+                          <SelectItem key={category} value={category}>{category}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Category Spending Chart */}
+            {/* Filtered Bar Chart */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  {chartFilter === 'all' ? 'Monthly Overview' : 
+                   chartFilter === 'category' ? 'Category Analysis' :
+                   chartFilter === 'daily' ? 'Daily Transactions' :
+                   chartFilter === 'weekly' ? 'Weekly Summary' :
+                   chartFilter === 'monthly' ? 'Monthly Summary' :
+                   chartFilter === 'income' ? 'Income by Category' :
+                   'Expenses by Category'}
+                </CardTitle>
+                <CardDescription>
+                  {chartFilter === 'income' ? 'Income breakdown' : 
+                   chartFilter === 'expenses' ? 'Expense breakdown' : 
+                   'Income vs expenses comparison'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={getFilteredChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <XAxis dataKey="name" />
+                      <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                      <Tooltip 
+                        formatter={(value: any, name: string) => [
+                          formatCurrency(value), 
+                          name === 'income' ? 'Income' : 
+                          name === 'expenses' ? 'Expenses' : 'Net'
+                        ]}
+                      />
+                      <Legend />
+                      {chartFilter !== 'expenses' && <Bar dataKey="income" fill="hsl(var(--success))" name="Income" />}
+                      {chartFilter !== 'income' && <Bar dataKey="expenses" fill="hsl(var(--destructive))" name="Expenses" />}
+                      {(chartFilter === 'all' || chartFilter === 'category' || chartFilter === 'daily' || chartFilter === 'weekly' || chartFilter === 'monthly') && (
+                        <Line type="monotone" dataKey="net" stroke="hsl(var(--primary))" name="Net" strokeWidth={2} />
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Category Pie Chart */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <PieChart className="h-5 w-5" />
-                  Spending by Category
+                  Expense Distribution
                 </CardTitle>
                 <CardDescription>Visual breakdown of your expense categories</CardDescription>
               </CardHeader>
@@ -342,47 +609,88 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                 </div>
               </CardContent>
             </Card>
-
-            {/* Monthly Trend Chart */}
-            <Card className="shadow-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Monthly Income vs Expenses
-                </CardTitle>
-                <CardDescription>Track your financial flow over time</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart 
-                      data={Object.entries(analysis.monthlyData)
-                        .sort(([a], [b]) => a.localeCompare(b))
-                        .map(([month, data]) => ({
-                          month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-                          income: data.income,
-                          expenses: data.expenses
-                        }))
-                      }
-                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                    >
-                      <XAxis dataKey="month" />
-                      <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                      <Tooltip 
-                        formatter={(value: any, name: string) => [
-                          formatCurrency(value), 
-                          name === 'income' ? 'Income' : 'Expenses'
-                        ]}
-                      />
-                      <Legend />
-                      <Bar dataKey="income" fill="hsl(var(--success))" name="Income" />
-                      <Bar dataKey="expenses" fill="hsl(var(--destructive))" name="Expenses" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="comparison" className="space-y-4">
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Compare className="h-5 w-5" />
+                Period Comparison
+              </CardTitle>
+              <CardDescription>Compare your financial data across different time periods</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4">
+                <label className="text-sm font-medium">Comparison Period</label>
+                <Select value={comparisonPeriod} onValueChange={(value: ComparisonPeriod) => setComparisonPeriod(value)}>
+                  <SelectTrigger className="w-[180px] mt-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="month">Monthly</SelectItem>
+                    <SelectItem value="quarter">Quarterly</SelectItem>
+                    <SelectItem value="year">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="h-[400px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={getComparisonData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <XAxis dataKey="period" />
+                    <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                    <YAxis yAxisId="right" orientation="right" />
+                    <Tooltip 
+                      formatter={(value: any, name: string) => [
+                        name === 'transactions' ? value : formatCurrency(value), 
+                        name === 'income' ? 'Income' : 
+                        name === 'expenses' ? 'Expenses' : 
+                        name === 'net' ? 'Net Amount' : 'Transactions'
+                      ]}
+                    />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="income" fill="hsl(var(--success))" name="Income" />
+                    <Bar yAxisId="left" dataKey="expenses" fill="hsl(var(--destructive))" name="Expenses" />
+                    <Line yAxisId="left" type="monotone" dataKey="net" stroke="hsl(var(--primary))" name="Net Amount" strokeWidth={3} />
+                    <Line yAxisId="right" type="monotone" dataKey="transactions" stroke="hsl(var(--warning))" name="Transactions" strokeWidth={2} strokeDasharray="5 5" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Comparison Summary */}
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                {getComparisonData.slice(-3).map((period, index) => (
+                  <Card key={period.period} className="border">
+                    <CardContent className="p-4">
+                      <h4 className="font-semibold text-center mb-2">{period.period}</h4>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Income:</span>
+                          <span className="text-success font-medium">{formatCurrency(period.income)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Expenses:</span>
+                          <span className="text-destructive font-medium">{formatCurrency(period.expenses)}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-1">
+                          <span>Net:</span>
+                          <span className={`font-bold ${period.net >= 0 ? 'text-success' : 'text-destructive'}`}>
+                            {formatCurrency(period.net)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Transactions:</span>
+                          <span className="text-muted-foreground">{period.transactions}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="insights" className="space-y-4">
