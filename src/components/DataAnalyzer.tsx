@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Download, TrendingUp, TrendingDown, DollarSign, Calendar, Upload, FileText, Brain, PieChart, BarChart3 } from "lucide-react";
 import { Transaction } from "@/utils/csvProcessor";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line } from "recharts";
+import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line, Tooltip, Legend } from "recharts";
 
 interface DataAnalyzerProps {
   transactions: Transaction[];
@@ -292,34 +292,54 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                 <CardDescription>Visual breakdown of your expense categories</CardDescription>
               </CardHeader>
               <CardContent>
-                <ChartContainer
-                  config={{
-                    expenses: {
-                      label: "Expenses",
-                    },
-                  }}
-                  className="h-[300px]"
-                >
-                  <RechartsPieChart>
-                    <ChartTooltip 
-                      content={<ChartTooltipContent />}
-                    />
-                    <RechartsPieChart data={Object.entries(analysis.categoryTotals)
-                      .filter(([,data]) => data.expenses > 0)
-                      .map(([category, data]) => ({
-                        category,
-                        value: data.expenses,
-                        fill: `hsl(var(--${category.toLowerCase().replace(/\s+/g, '-')}))`
-                      }))}>
-                      <Cell fill="hsl(var(--primary))" />
-                      <Cell fill="hsl(var(--destructive))" />
-                      <Cell fill="hsl(var(--warning))" />
-                      <Cell fill="hsl(var(--success))" />
-                      <Cell fill="hsl(var(--secondary))" />
-                      <Cell fill="hsl(var(--accent))" />
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPieChart>
+                      <RechartsPieChart 
+                        data={Object.entries(analysis.categoryTotals)
+                          .filter(([,data]) => data.expenses > 0)
+                          .map(([category, data], index) => ({
+                            name: category,
+                            value: data.expenses,
+                            fill: [
+                              "hsl(var(--primary))",
+                              "hsl(var(--destructive))", 
+                              "hsl(var(--warning))",
+                              "hsl(var(--success))",
+                              "hsl(var(--secondary))",
+                              "hsl(var(--accent))"
+                            ][index % 6]
+                          }))
+                        }
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        dataKey="value"
+                      >
+                        {Object.entries(analysis.categoryTotals)
+                          .filter(([,data]) => data.expenses > 0)
+                          .map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={[
+                                "hsl(var(--primary))",
+                                "hsl(var(--destructive))", 
+                                "hsl(var(--warning))",
+                                "hsl(var(--success))",
+                                "hsl(var(--secondary))",
+                                "hsl(var(--accent))"
+                              ][index % 6]}
+                            />
+                          ))
+                        }
+                      </RechartsPieChart>
+                      <Tooltip 
+                        formatter={(value: any) => [formatCurrency(value), 'Amount']}
+                      />
+                      <Legend />
                     </RechartsPieChart>
-                  </RechartsPieChart>
-                </ChartContainer>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
 
@@ -333,33 +353,33 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                 <CardDescription>Track your financial flow over time</CardDescription>
               </CardHeader>
               <CardContent>
-                <ChartContainer
-                  config={{
-                    income: {
-                      label: "Income",
-                      color: "hsl(var(--success))",
-                    },
-                    expenses: {
-                      label: "Expenses", 
-                      color: "hsl(var(--destructive))",
-                    },
-                  }}
-                  className="h-[300px]"
-                >
-                  <BarChart data={Object.entries(analysis.monthlyData)
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([month, data]) => ({
-                      month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short' }),
-                      income: data.income,
-                      expenses: data.expenses
-                    }))}>
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="income" fill="hsl(var(--success))" />
-                    <Bar dataKey="expenses" fill="hsl(var(--destructive))" />
-                  </BarChart>
-                </ChartContainer>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart 
+                      data={Object.entries(analysis.monthlyData)
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .map(([month, data]) => ({
+                          month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+                          income: data.income,
+                          expenses: data.expenses
+                        }))
+                      }
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <XAxis dataKey="month" />
+                      <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                      <Tooltip 
+                        formatter={(value: any, name: string) => [
+                          formatCurrency(value), 
+                          name === 'income' ? 'Income' : 'Expenses'
+                        ]}
+                      />
+                      <Legend />
+                      <Bar dataKey="income" fill="hsl(var(--success))" name="Income" />
+                      <Bar dataKey="expenses" fill="hsl(var(--destructive))" name="Expenses" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
           </div>

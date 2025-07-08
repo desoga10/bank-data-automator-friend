@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FileUpload } from "@/components/FileUpload";
 import { DataAnalyzer } from "@/components/DataAnalyzer";
 import { FileManager } from "@/components/FileManager";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrendingUp, Upload, FileText, Brain, BarChart3 } from "lucide-react";
-import { Transaction } from "@/utils/csvProcessor";
+import { Transaction, parseCsv } from "@/utils/csvProcessor";
 import { Link } from "react-router-dom";
 
 const Dashboard = () => {
@@ -17,71 +17,114 @@ const Dashboard = () => {
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
   const [showAnalysis, setShowAnalysis] = useState(false);
 
-  const handleDataProcessed = (data: Transaction[], csv: string, name: string) => {
-    setTransactions(data);
-    setCsvData(csv);
-    setFileName(name);
-    setShowAnalysis(true);
-    
-    // Add to uploaded files if not already present
-    const fileExists = uploadedFiles.find(f => f.name === name);
-    if (!fileExists) {
-      const newFile = {
-        id: Date.now().toString(),
-        name,
-        csvData: csv,
-        transactionCount: data.length,
-        uploadedAt: new Date()
-      };
-      setUploadedFiles(prev => [...prev, newFile]);
+  // Load uploaded files from localStorage on component mount
+  useEffect(() => {
+    const loadUploadedFiles = () => {
+      const savedFiles = localStorage.getItem('uploadedFiles');
+      if (savedFiles) {
+        try {
+          const files = JSON.parse(savedFiles).map((file: any) => ({
+            ...file,
+            uploadDate: new Date(file.uploadDate)
+          }));
+          setUploadedFiles(files);
+        } catch (error) {
+          console.error('Error loading saved files:', error);
+          setUploadedFiles([]);
+        }
+      }
+    };
+
+    loadUploadedFiles();
+  }, []);
+
+  // Save uploaded files to localStorage whenever the list changes
+  useEffect(() => {
+    if (uploadedFiles.length > 0) {
+      localStorage.setItem('uploadedFiles', JSON.stringify(uploadedFiles));
     }
+  }, [uploadedFiles]);
+
+  const addToFileManager = (csvData: string, fileName: string, type: 'pdf' | 'csv', transactionCount?: number) => {
+    const fileData = {
+      id: Date.now().toString(),
+      name: fileName,
+      type,
+      size: new Blob([csvData]).size,
+      uploadDate: new Date(),
+      csvData,
+      transactionCount
+    };
+
+    // Update the local state
+    setUploadedFiles(prev => {
+      const newFiles = [fileData, ...prev];
+      // Also save to localStorage immediately
+      localStorage.setItem('uploadedFiles', JSON.stringify(newFiles));
+      return newFiles;
+    });
   };
 
   const handleFileProcessed = (csvData: string, fileName: string) => {
-    // Parse the CSV to get transaction data
-    const lines = csvData.split('\n').filter(line => line.trim());
-    if (lines.length > 1) {
-      const transactions = lines.slice(1).map(line => {
-        const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-        return {
-          date: values[0] || '',
-          description: values[1] || '',
-          amount: parseFloat(values[2]) || 0,
-          category: values[3] || 'Miscellaneous'
-        };
-      });
+    try {
+      // Parse the CSV to get transaction data
+      const parsedTransactions = parseCsv(csvData);
       
-      handleDataProcessed(transactions, csvData, fileName);
+      if (parsedTransactions.length === 0) {
+        throw new Error("No valid transactions found in the CSV file.");
+      }
+
+      // Set the analysis data
+      setTransactions(parsedTransactions);
+      setCsvData(csvData);
+      setFileName(fileName);
+      setShowAnalysis(true);
+      
+      // Add to file manager
+      addToFileManager(csvData, fileName, 'csv', parsedTransactions.length);
+      
+      console.log(`Processed ${parsedTransactions.length} transactions from ${fileName}`);
+    } catch (error) {
+      console.error('Error processing file:', error);
+      // You might want to show an error toast here
     }
   };
 
   const handleUploadAnother = () => {
+    // Only clear the current analysis data, NOT the uploaded files
+    setTransactions([]);
+    setCsvData("");
+    setFileName("");
     setShowAnalysis(false);
+    
+    // Don't clear uploadedFiles state - this preserves the file history
+    console.log(`File history preserved: ${uploadedFiles.length} files available`);
   };
 
-  const handleDocumentSelect = (csvData: string, fileName: string) => {
-    // Find the file and process its data
-    const selectedFile = uploadedFiles.find(f => f.name === fileName);
-    if (selectedFile) {
-      // Re-process the CSV data to get transactions
-      const lines = csvData.split('\n').filter(line => line.trim());
-      if (lines.length > 1) {
-        const transactions = lines.slice(1).map(line => {
-          const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-          return {
-            date: values[0] || '',
-            description: values[1] || '',
-            amount: parseFloat(values[2]) || 0,
-            category: values[3] || 'Miscellaneous'
-          };
-        });
-        
-        setTransactions(transactions);
-        setCsvData(csvData);
-        setFileName(fileName);
-        setShowAnalysis(true);
+  const handleDocumentSelect = (selectedCsvData: string, selectedFileName: string) => {
+    try {
+      // Parse the selected CSV data to get transactions
+      const parsedTransactions = parseCsv(selectedCsvData);
+      
+      if (parsedTransactions.length === 0) {
+        throw new Error("No valid transactions found in the selected file.");
       }
+
+      // Set the analysis data
+      setTransactions(parsedTransactions);
+      setCsvData(selectedCsvData);
+      setFileName(selectedFileName);
+      setShowAnalysis(true);
+      
+      console.log(`Loaded ${parsedTransactions.length} transactions from ${selectedFileName}`);
+    } catch (error) {
+      console.error('Error loading selected file:', error);
+      // You might want to show an error toast here
     }
+  };
+
+  const handleFileManagerSelect = (selectedCsvData: string, selectedFileName: string) => {
+    handleDocumentSelect(selectedCsvData, selectedFileName);
   };
 
   return (
@@ -125,6 +168,11 @@ const Dashboard = () => {
                 <TabsTrigger value="files" className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
                   My Files
+                  {uploadedFiles.length > 0 && (
+                    <span className="ml-1 bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">
+                      {uploadedFiles.length}
+                    </span>
+                  )}
                 </TabsTrigger>
                 <TabsTrigger value="assistant" className="flex items-center gap-2">
                   <Brain className="h-4 w-4" />
@@ -154,24 +202,11 @@ const Dashboard = () => {
               </TabsContent>
 
               <TabsContent value="files" className="space-y-6">
-                <Card className="shadow-card">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
-                      File Manager
-                    </CardTitle>
-                    <CardDescription>
-                      Manage your uploaded financial documents
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <FileManager 
-                      uploadedFiles={uploadedFiles}
-                      setUploadedFiles={setUploadedFiles}
-                      onFileSelect={handleDocumentSelect}
-                    />
-                  </CardContent>
-                </Card>
+                <FileManager 
+                  uploadedFiles={uploadedFiles}
+                  setUploadedFiles={setUploadedFiles}
+                  onFileSelect={handleFileManagerSelect}
+                />
               </TabsContent>
 
               <TabsContent value="assistant" className="space-y-6">
@@ -236,7 +271,7 @@ const Dashboard = () => {
                         <div>
                           <p className="text-sm text-muted-foreground">Latest Upload</p>
                           <p className="text-sm font-medium text-warning truncate">
-                            {uploadedFiles[uploadedFiles.length - 1]?.name || 'No files'}
+                            {uploadedFiles[0]?.name || 'No files'}
                           </p>
                         </div>
                       </div>
