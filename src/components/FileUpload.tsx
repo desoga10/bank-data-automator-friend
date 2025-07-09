@@ -367,13 +367,15 @@ export const FileUpload = ({ onFileProcessed, onProcessingStart, onProcessingEnd
           <div className="text-xs text-muted-foreground">
             <p className="font-medium mb-1">Supported Bank Formats:</p>
             <ul className="space-y-1">
-              <li>• <strong>Date columns:</strong> Date, Trans Date, Value Date, Transaction Date</li>
-              <li>• <strong>Description columns:</strong> Description, Remarks, Narration, Details</li>
-              <li>• <strong>Amount formats:</strong> Single Amount column OR separate Debit/Credit columns</li>
-              <li>• <strong>Optional:</strong> Category, Type, Classification columns</li>
+              <li>• <strong>Standard CSV:</strong> Date,Description,Amount or Date,Description,Withdrawals,Deposits</li>
+              <li>• <strong>Bank Formats:</strong> DD-MMM-YYYY, MM/DD/YYYY, YYYY-MM-DD date formats</li>
+              <li>• <strong>Column Names:</strong> Withdrawals/Money Out (debit), Deposits/Money In (credit)</li>
+              <li>• <strong>PDF Formats:</strong> Sectional (Date: Amount:) and headerless patterns</li>
+              <li>• <strong>PayPal/International:</strong> Time zones, currency codes, status fields</li>
+              <li>• <strong>Currency Support:</strong> $, £, €, ¥, ₹ with comma separators</li>
             </ul>
             <p className="mt-2 text-amber-600">
-              💡 The system automatically detects your bank's CSV format and processes accordingly.
+              💡 Advanced pattern matching automatically detects and processes various bank statement formats.
             </p>
           </div>
         </div>
