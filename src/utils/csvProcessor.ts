@@ -3,11 +3,12 @@ export interface Transaction {
   description: string;
   amount: number;
   category: string;
+  currency?: string;
 }
 
 const categories = [
   "Salary", "Rent", "Groceries", "Transport", "Utilities", 
-  "Dining", "Subscriptions", "Miscellaneous"
+  "Dining", "Subscriptions", "Miscellaneous", "Shopping", "Fitness", "Other Income"
 ];
 
 // Comprehensive header mappings for different banks and formats
@@ -62,14 +63,31 @@ const HEADER_MAPPINGS = {
   ]
 };
 
+// Currency symbols and their codes
+const CURRENCY_SYMBOLS = {
+  '$': 'USD',
+  '£': 'GBP',
+  '€': 'EUR',
+  '¥': 'JPY',
+  '₹': 'INR',
+  '₽': 'RUB',
+  '₩': 'KRW',
+  'C$': 'CAD',
+  'A$': 'AUD',
+  'R$': 'BRL',
+  '₦': 'NGN',
+  '₵': 'GHS',
+  '₨': 'PKR'
+};
+
 // Date format patterns with regex
 const DATE_PATTERNS = [
+  // YYYY-MM-DD (ISO format)
+  { regex: /^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/, format: 'YYYY_MM_DD' },
   // DD/MM/YYYY, MM/DD/YYYY
   { regex: /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/, format: 'DMY_or_MDY' },
   // DD-MMM-YYYY (01-May-2025)
   { regex: /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/, format: 'DD_MMM_YYYY' },
-  // YYYY-MM-DD
-  { regex: /^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/, format: 'YYYY_MM_DD' },
   // DD/MM/YY, MM/DD/YY
   { regex: /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/, format: 'DMY_or_MDY_short' },
   // MMM DD, YYYY (May 01, 2025)
@@ -88,13 +106,17 @@ const MONTH_NAMES = {
 export const categorizeTransaction = (description: string): string => {
   const desc = description.toLowerCase();
   
-  if (desc.includes("salary") || desc.includes("wage") || desc.includes("income") || desc.includes("payroll") || desc.includes("direct dep")) return "Salary";
-  if (desc.includes("rent") || desc.includes("mortgage") || desc.includes("housing")) return "Rent";
-  if (desc.includes("grocery") || desc.includes("supermarket") || desc.includes("food store") || desc.includes("walmart") || desc.includes("target")) return "Groceries";
-  if (desc.includes("uber") || desc.includes("taxi") || desc.includes("transport") || desc.includes("gas") || desc.includes("fuel") || desc.includes("metro")) return "Transport";
-  if (desc.includes("electric") || desc.includes("water") || desc.includes("utility") || desc.includes("internet") || desc.includes("phone")) return "Utilities";
-  if (desc.includes("restaurant") || desc.includes("dining") || desc.includes("cafe") || desc.includes("pizza") || desc.includes("mcdonald")) return "Dining";
-  if (desc.includes("netflix") || desc.includes("spotify") || desc.includes("subscription") || desc.includes("monthly") || desc.includes("amazon prime")) return "Subscriptions";
+  // Enhanced categorization with more patterns
+  if (desc.includes("salary") || desc.includes("wage") || desc.includes("income") || desc.includes("payroll") || desc.includes("direct dep") || desc.includes("monthly pay") || desc.includes("salary payment")) return "Salary";
+  if (desc.includes("rent") || desc.includes("mortgage") || desc.includes("housing") || desc.includes("monthly rent")) return "Rent";
+  if (desc.includes("grocery") || desc.includes("supermarket") || desc.includes("food store") || desc.includes("walmart") || desc.includes("target") || desc.includes("whole foods") || desc.includes("kroger")) return "Groceries";
+  if (desc.includes("uber") || desc.includes("taxi") || desc.includes("transport") || desc.includes("gas") || desc.includes("fuel") || desc.includes("metro") || desc.includes("lyft") || desc.includes("gas station")) return "Transport";
+  if (desc.includes("electric") || desc.includes("water") || desc.includes("utility") || desc.includes("internet") || desc.includes("phone") || desc.includes("electricity bill") || desc.includes("water bill") || desc.includes("internet subscription")) return "Utilities";
+  if (desc.includes("restaurant") || desc.includes("dining") || desc.includes("cafe") || desc.includes("pizza") || desc.includes("mcdonald") || desc.includes("starbucks") || desc.includes("chipotle")) return "Dining";
+  if (desc.includes("netflix") || desc.includes("spotify") || desc.includes("subscription") || desc.includes("monthly") || desc.includes("amazon prime") || desc.includes("youtube premium")) return "Subscriptions";
+  if (desc.includes("gym") || desc.includes("fitness") || desc.includes("yoga") || desc.includes("gym membership") || desc.includes("yoga class")) return "Fitness";
+  if (desc.includes("amazon") || desc.includes("ebay") || desc.includes("shopping") || desc.includes("target") || desc.includes("walmart")) return "Shopping";
+  if (desc.includes("bonus") || desc.includes("gift") || desc.includes("freelance") || desc.includes("other income") || desc.includes("gift received") || desc.includes("freelance payment")) return "Other Income";
   
   return "Miscellaneous";
 };
@@ -133,14 +155,34 @@ const detectHeaderStructure = (headers: string[]) => {
   // Determine if we have separate debit/credit columns or a single amount column
   const hasSeparateColumns = structure.debitIndex !== -1 && structure.creditIndex !== -1;
   const hasSingleAmount = structure.amountIndex !== -1;
+  const hasBalance = structure.balanceIndex !== -1;
 
   return {
     ...structure,
     hasSeparateColumns,
     hasSingleAmount,
+    hasBalance,
     isValid: structure.dateIndex !== -1 && structure.descriptionIndex !== -1 && 
              (hasSeparateColumns || hasSingleAmount)
   };
+};
+
+// Detect currency from text or amount string
+const detectCurrency = (text: string, currencyColumn?: string): string => {
+  // If there's a currency column, use that
+  if (currencyColumn && currencyColumn.trim()) {
+    return currencyColumn.trim().toUpperCase();
+  }
+  
+  // Look for currency symbols in the text
+  for (const [symbol, code] of Object.entries(CURRENCY_SYMBOLS)) {
+    if (text.includes(symbol)) {
+      return code;
+    }
+  }
+  
+  // Default to USD if no currency detected
+  return 'USD';
 };
 
 // Enhanced date parsing with multiple format support
@@ -191,13 +233,16 @@ const formatDateFromMatch = (match: RegExpMatchArray, format: string): string =>
       return `${part3}-${monthNum}-${part2.padStart(2, '0')}`;
       
     case 'DMY_or_MDY':
-      // Assume MM/DD/YYYY for US format, but could be DD/MM/YYYY
-      // Use heuristic: if day > 12, it's likely DD/MM/YYYY
+      // For your specific format (2024-08-04), this is already YYYY-MM-DD
+      // But handle MM/DD/YYYY vs DD/MM/YYYY ambiguity
       if (parseInt(part1) > 12) {
         // DD/MM/YYYY
         return `${part3}-${part2.padStart(2, '0')}-${part1.padStart(2, '0')}`;
+      } else if (parseInt(part2) > 12) {
+        // MM/DD/YYYY  
+        return `${part3}-${part1.padStart(2, '0')}-${part2.padStart(2, '0')}`;
       } else {
-        // MM/DD/YYYY
+        // Ambiguous - assume MM/DD/YYYY for US format
         return `${part3}-${part1.padStart(2, '0')}-${part2.padStart(2, '0')}`;
       }
       
@@ -224,7 +269,7 @@ const parseAmount = (amountStr: string): number => {
     if (!amountStr || amountStr.trim() === '') return 0;
     
     // Remove currency symbols, spaces, and other non-numeric characters except decimal points and signs
-    let cleanAmount = amountStr.replace(/[\$£€¥₹,\s]/g, '');
+    let cleanAmount = amountStr.replace(/[\$£€¥₹₽₩,\s]/g, '');
     
     // Handle negative amounts (-, (), or leading -)
     const isNegative = cleanAmount.includes('-') || cleanAmount.startsWith('(') || cleanAmount.endsWith(')');
@@ -254,6 +299,7 @@ const parseSectionalFormat = (text: string): Transaction[] => {
     let date = '';
     let description = '';
     let amount = 0;
+    let currency = 'USD';
     
     for (const line of lines) {
       if (line.startsWith('Date:')) {
@@ -263,6 +309,7 @@ const parseSectionalFormat = (text: string): Transaction[] => {
         description = line.replace(/^(Details|Description):/, '').trim();
       } else if (line.startsWith('Amount:')) {
         const amountStr = line.replace('Amount:', '').trim();
+        currency = detectCurrency(amountStr);
         amount = parseAmount(amountStr);
       }
     }
@@ -272,7 +319,8 @@ const parseSectionalFormat = (text: string): Transaction[] => {
         date,
         description,
         amount,
-        category: categorizeTransaction(description)
+        category: categorizeTransaction(description),
+        currency
       });
     }
   }
@@ -295,13 +343,15 @@ const parseHeaderlessFormat = (text: string): Transaction[] => {
       
       const date = parseDate(dateStr);
       const amount = parseAmount(amountStr);
+      const currency = detectCurrency(amountStr);
       
       if (date && !isNaN(amount)) {
         transactions.push({
           date,
           description: `${type.trim()} ${description.trim()}`.trim(),
           amount,
-          category: categorizeTransaction(description)
+          category: categorizeTransaction(description),
+          currency
         });
       }
     }
@@ -399,6 +449,9 @@ export const parseCsv = (csvText: string): Transaction[] => {
     throw new Error('CSV format not recognized. Please ensure your file has Date, Description, and Amount (or Debit/Credit) columns');
   }
   
+  console.log('Detected CSV structure:', structure);
+  console.log('Headers:', headers);
+  
   // Parse data rows
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -415,13 +468,17 @@ export const parseCsv = (csvText: string): Transaction[] => {
     }
     
     const maxIndex = Math.max(...requiredIndices.filter(idx => idx !== -1));
-    if (values.length <= maxIndex) continue;
+    if (values.length <= maxIndex) {
+      console.warn(`Skipping row ${i + 1}: insufficient columns`, values);
+      continue;
+    }
     
     try {
       const date = parseDate(cleanValue(values[structure.dateIndex]));
       const description = cleanValue(values[structure.descriptionIndex]);
       
       let amount = 0;
+      let currency = 'USD';
       
       if (structure.hasSeparateColumns) {
         // Handle separate debit/credit columns
@@ -430,9 +487,21 @@ export const parseCsv = (csvText: string): Transaction[] => {
         
         // Credit is positive (income), Debit is negative (expense)
         amount = creditValue - debitValue;
+        
+        // Detect currency from debit or credit columns
+        const debitStr = structure.debitIndex !== -1 ? cleanValue(values[structure.debitIndex]) : '';
+        const creditStr = structure.creditIndex !== -1 ? cleanValue(values[structure.creditIndex]) : '';
+        currency = detectCurrency(debitStr + creditStr);
       } else if (structure.hasSingleAmount) {
-        // Handle single amount column
-        amount = parseAmount(cleanValue(values[structure.amountIndex]));
+        // Handle single amount column - this is your file format
+        const amountStr = cleanValue(values[structure.amountIndex]);
+        amount = parseAmount(amountStr);
+        currency = detectCurrency(amountStr);
+      }
+      
+      // Get currency from currency column if available
+      if (structure.currencyIndex !== -1 && values[structure.currencyIndex]) {
+        currency = detectCurrency('', cleanValue(values[structure.currencyIndex]));
       }
       
       let category = '';
@@ -445,7 +514,15 @@ export const parseCsv = (csvText: string): Transaction[] => {
       }
       
       if (date && description && !isNaN(amount)) {
-        transactions.push({ date, description, amount, category });
+        transactions.push({ 
+          date, 
+          description, 
+          amount, 
+          category,
+          currency 
+        });
+      } else {
+        console.warn(`Skipping invalid transaction at row ${i + 1}:`, { date, description, amount });
       }
     } catch (error) {
       console.warn(`Skipping invalid row ${i + 1}:`, error);
@@ -453,6 +530,7 @@ export const parseCsv = (csvText: string): Transaction[] => {
     }
   }
   
+  console.log(`Successfully parsed ${transactions.length} transactions`);
   return transactions;
 };
 
@@ -504,8 +582,10 @@ const parseStructuredFormat = (lines: string[]): Transaction[] => {
     else if (trimmedLine.startsWith('Amount:')) {
       const amountStr = trimmedLine.replace('Amount:', '').trim();
       const amount = parseAmount(amountStr);
+      const currency = detectCurrency(amountStr);
       if (!isNaN(amount)) {
         currentTransaction.amount = amount;
+        currentTransaction.currency = currency;
         
         // If we have all required fields, create transaction
         if (currentTransaction.date && currentTransaction.description) {
@@ -538,6 +618,7 @@ const parseTabularFormat = (text: string): Transaction[] => {
     if (dateMatch && amountMatches && amountMatches.length > 0) {
       const date = parseDate(dateMatch[0]);
       const amount = parseAmount(amountMatches[amountMatches.length - 1]);
+      const currency = detectCurrency(amountMatches[amountMatches.length - 1]);
       
       if (date && !isNaN(amount)) {
         // Extract description (text between date and amount)
@@ -552,7 +633,8 @@ const parseTabularFormat = (text: string): Transaction[] => {
             date,
             description,
             amount,
-            category: categorizeTransaction(description)
+            category: categorizeTransaction(description),
+            currency
           });
         }
       }
@@ -563,7 +645,7 @@ const parseTabularFormat = (text: string): Transaction[] => {
 };
 
 export const convertToCsv = (transactions: Transaction[]): string => {
-  const headers = ['Date', 'Description', 'Amount', 'Category'];
+  const headers = ['Date', 'Description', 'Amount', 'Category', 'Currency'];
   const csvRows = [headers.join(',')];
   
   transactions.forEach(transaction => {
@@ -571,7 +653,8 @@ export const convertToCsv = (transactions: Transaction[]): string => {
       transaction.date,
       `"${transaction.description.replace(/"/g, '""')}"`, // Escape quotes
       transaction.amount.toString(),
-      transaction.category
+      transaction.category,
+      transaction.currency || 'USD'
     ];
     csvRows.push(row.join(','));
   });
