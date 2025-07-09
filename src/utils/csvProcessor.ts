@@ -153,17 +153,25 @@ const detectHeaderStructure = (headers: string[]) => {
   };
 
   // Determine if we have separate debit/credit columns or a single amount column
-  const hasSeparateColumns = structure.debitIndex !== -1 && structure.creditIndex !== -1;
+  const hasSeparateColumns = structure.debitIndex !== -1 && structure.creditIndex !== -1 && 
+                            structure.debitIndex !== structure.creditIndex; // Ensure they're different columns
   const hasSingleAmount = structure.amountIndex !== -1;
   const hasBalance = structure.balanceIndex !== -1;
+
+  // If debit and credit point to the same column, treat as single amount
+  if (structure.debitIndex !== -1 && structure.creditIndex !== -1 && 
+      structure.debitIndex === structure.creditIndex) {
+    console.log('🔍 Debit and Credit columns are the same - treating as single amount column');
+    structure.amountIndex = structure.debitIndex;
+  }
 
   return {
     ...structure,
     hasSeparateColumns,
-    hasSingleAmount,
+    hasSingleAmount: hasSingleAmount || (structure.debitIndex === structure.creditIndex && structure.debitIndex !== -1),
     hasBalance,
     isValid: structure.dateIndex !== -1 && structure.descriptionIndex !== -1 && 
-             (hasSeparateColumns || hasSingleAmount)
+             (hasSeparateColumns || hasSingleAmount || structure.debitIndex !== -1)
   };
 };
 
