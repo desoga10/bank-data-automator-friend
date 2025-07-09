@@ -545,6 +545,8 @@ export const parseCsv = (csvText: string): Transaction[] => {
         category = categorizeTransaction(description);
       }
       
+      console.log(`🔍 Before creating transaction - amount: ${amount}, isNaN(amount): ${isNaN(amount)}`);
+      
       if (date && description && !isNaN(amount)) {
         const transaction = { 
           date, 
@@ -553,8 +555,9 @@ export const parseCsv = (csvText: string): Transaction[] => {
           category,
           currency 
         };
+        console.log(`✅ Created transaction object:`, transaction);
         transactions.push(transaction);
-        console.log(`Valid transaction ${transactions.length}:`, transaction);
+        console.log(`✅ Valid transaction ${transactions.length}:`, transaction);
       } else {
         console.warn(`Skipping invalid transaction at row ${i + 1}:`, { 
           date, 
