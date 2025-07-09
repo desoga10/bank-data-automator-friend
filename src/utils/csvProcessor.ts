@@ -450,7 +450,8 @@ export const parseCsv = (csvText: string): Transaction[] => {
   const lines = csvText.trim().split('\n');
   let transactions: Transaction[] = [];
   
-  console.log(`Processing CSV with ${lines.length} lines`);
+  console.log(`🔍 Processing CSV with ${lines.length} lines`);
+  console.log('📄 First few lines:', lines.slice(0, 3));
   
   if (lines.length < 1) return transactions;
   
@@ -478,8 +479,8 @@ export const parseCsv = (csvText: string): Transaction[] => {
     throw new Error('CSV format not recognized. Please ensure your file has Date, Description, and Amount (or Debit/Credit) columns');
   }
   
-  console.log('Detected CSV structure:', structure);
-  console.log('Headers:', headers);
+  console.log('🏗️ Detected CSV structure:', structure);
+  console.log('📊 Headers:', headers);
   
   // Parse data rows
   for (let i = 1; i < lines.length; i++) {
@@ -524,8 +525,10 @@ export const parseCsv = (csvText: string): Transaction[] => {
       } else if (structure.hasSingleAmount) {
         // Handle single amount column - this is your file format
         const amountStr = cleanValue(values[structure.amountIndex]);
+        console.log(`💰 Processing amount at index ${structure.amountIndex}: "${amountStr}"`);
         amount = parseAmount(amountStr);
         currency = detectCurrency(amountStr);
+        console.log(`💰 Final amount: ${amount}, currency: ${currency}`);
       }
       
       // Get currency from currency column if available
