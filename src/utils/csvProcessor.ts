@@ -517,6 +517,7 @@ export const parseCsv = (csvText: string): Transaction[] => {
         
         // Credit is positive (income), Debit is negative (expense)
         amount = creditValue - debitValue;
+        console.log(`💰 Separate columns - debit: ${debitValue}, credit: ${creditValue}, final amount: ${amount}`);
         
         // Detect currency from debit or credit columns
         const debitStr = structure.debitIndex !== -1 ? cleanValue(values[structure.debitIndex]) : '';
@@ -526,7 +527,10 @@ export const parseCsv = (csvText: string): Transaction[] => {
         // Handle single amount column - this is your file format
         const amountStr = cleanValue(values[structure.amountIndex]);
         console.log(`💰 Processing amount at index ${structure.amountIndex}: "${amountStr}"`);
-        amount = parseAmount(amountStr);
+        const parsedAmount = parseAmount(amountStr);
+        console.log(`💰 Parsed amount result: ${parsedAmount}`);
+        amount = parsedAmount;
+        console.log(`💰 Amount after assignment: ${amount}`);
         currency = detectCurrency(amountStr);
         console.log(`💰 Final amount: ${amount}, currency: ${currency}`);
       }
