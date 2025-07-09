@@ -34,6 +34,10 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
     const totalExpenses = transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
     const netAmount = totalIncome - totalExpenses;
     
+    // Detect currency from transactions
+    const currencies = [...new Set(transactions.map(t => t.currency).filter(Boolean))];
+    const primaryCurrency = currencies[0] || 'USD';
+    
     // Category breakdown
     const categoryTotals = transactions.reduce((acc, transaction) => {
       const category = transaction.category;
@@ -110,6 +114,8 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
       totalIncome,
       totalExpenses,
       netAmount,
+      primaryCurrency,
+      currencies,
       categoryTotals,
       dailyData,
       weeklyData,
@@ -300,9 +306,20 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
   };
 
   const formatCurrency = (amount: number) => {
+    const currency = analysis.primaryCurrency || 'USD';
+    const currencySymbols = {
+      'USD': '$',
+      'GBP': '£', 
+      'EUR': '€',
+      'JPY': '¥',
+      'INR': '₹'
+    };
+    
+    const symbol = currencySymbols[currency as keyof typeof currencySymbols] || '$';
+    
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: currency
     }).format(amount);
   };
 
