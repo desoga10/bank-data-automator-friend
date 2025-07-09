@@ -188,15 +188,21 @@ const detectCurrency = (text: string, currencyColumn?: string): string => {
 // Enhanced date parsing with multiple format support
 const parseDate = (dateStr: string): string | null => {
   try {
-    if (!dateStr || dateStr.trim() === '') return null;
+    if (!dateStr || dateStr.trim() === '') {
+      console.warn('Empty date string');
+      return null;
+    }
     
     const cleanDate = dateStr.trim();
+    console.log(`Parsing date: "${cleanDate}"`);
     
     // Try each date pattern
     for (const pattern of DATE_PATTERNS) {
       const match = cleanDate.match(pattern.regex);
       if (match) {
-        return formatDateFromMatch(match, pattern.format);
+        const result = formatDateFromMatch(match, pattern.format);
+        console.log(`Date parsed: "${cleanDate}" -> "${result}" using pattern: ${pattern.format}`);
+        return result;
       }
     }
     
@@ -206,12 +212,15 @@ const parseDate = (dateStr: string): string | null => {
       const year = parsedDate.getFullYear();
       const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
       const day = String(parsedDate.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
+      const result = `${year}-${month}-${day}`;
+      console.log(`Date parsed (fallback): "${cleanDate}" -> "${result}"`);
+      return result;
     }
     
+    console.warn('Failed to parse date:', cleanDate);
     return null;
   } catch (error) {
-    console.warn('Date parsing error:', error);
+    console.warn('Date parsing error:', error, 'for:', dateStr);
     return null;
   }
 };
@@ -266,7 +275,12 @@ const formatDateFromMatch = (match: RegExpMatchArray, format: string): string =>
 // Enhanced amount parsing with currency support
 const parseAmount = (amountStr: string): number => {
   try {
-    if (!amountStr || amountStr.trim() === '') return 0;
+    if (!amountStr || amountStr.trim() === '') {
+      console.warn('Empty amount string');
+      return 0;
+    }
+    
+    const originalAmount = amountStr;
     
     // Remove currency symbols, spaces, and other non-numeric characters except decimal points and signs
     let cleanAmount = amountStr.replace(/[\$£€¥₹₽₩,\s]/g, '');
@@ -278,12 +292,25 @@ const parseAmount = (amountStr: string): number => {
     // Handle positive signs
     cleanAmount = cleanAmount.replace(/^\+/, '');
     
-    const amount = parseFloat(cleanAmount);
-    if (isNaN(amount)) return 0;
+    // Handle cases where there are multiple decimal points (e.g., thousands separator confusion)
+    if ((cleanAmount.match(/\./g) || []).length > 1) {
+      // Remove all but the last decimal point (treat others as thousands separators)
+      const parts = cleanAmount.split('.');
+      const lastPart = parts.pop();
+      cleanAmount = parts.join('') + '.' + lastPart;
+    }
     
-    return isNegative ? -amount : amount;
+    const amount = parseFloat(cleanAmount);
+    if (isNaN(amount)) {
+      console.warn('Failed to parse amount:', originalAmount, '-> cleaned:', cleanAmount);
+      return 0;
+    }
+    
+    const result = isNegative ? -amount : amount;
+    console.log(`Parsed amount: "${originalAmount}" -> ${result}`);
+    return result;
   } catch (error) {
-    console.warn('Amount parsing error:', error);
+    console.warn('Amount parsing error:', error, 'for:', amountStr);
     return 0;
   }
 };
@@ -423,6 +450,8 @@ export const parseCsv = (csvText: string): Transaction[] => {
   const lines = csvText.trim().split('\n');
   let transactions: Transaction[] = [];
   
+  console.log(`Processing CSV with ${lines.length} lines`);
+  
   if (lines.length < 1) return transactions;
   
   // Try sectional format first (Format 5)
@@ -514,15 +543,25 @@ export const parseCsv = (csvText: string): Transaction[] => {
       }
       
       if (date && description && !isNaN(amount)) {
-        transactions.push({ 
+        const transaction = { 
           date, 
           description, 
           amount, 
           category,
           currency 
-        });
+        };
+        transactions.push(transaction);
+        console.log(`Valid transaction ${transactions.length}:`, transaction);
       } else {
-        console.warn(`Skipping invalid transaction at row ${i + 1}:`, { date, description, amount });
+        console.warn(`Skipping invalid transaction at row ${i + 1}:`, { 
+          date, 
+          description, 
+          amount, 
+          rawDate: values[structure.dateIndex],
+          rawDescription: values[structure.descriptionIndex],
+          rawAmount: structure.hasSingleAmount ? values[structure.amountIndex] : 
+                     `Debit: ${structure.debitIndex !== -1 ? values[structure.debitIndex] : 'N/A'}, Credit: ${structure.creditIndex !== -1 ? values[structure.creditIndex] : 'N/A'}`
+        });
       }
     } catch (error) {
       console.warn(`Skipping invalid row ${i + 1}:`, error);
