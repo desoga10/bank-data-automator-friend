@@ -261,40 +261,54 @@ export const FinancialAssistant = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <Textarea
-                      placeholder={`Supported formats:
+                      placeholder={`Supported formats (paste any of these):
 
-FORMAT 1 - Simple Date/Description/Amount:
+FORMAT 1 - US/UK Bank Statement:
+Date        Description              Debit    Credit   Balance
+06/01/2024  Uber Trip               25.00             975.00
+06/02/2024  Netflix Subscription    12.99             962.01
+06/05/2024  Salary June                      3000.00  3962.01
+
+FORMAT 2 - PayPal CSV Statement:
+Date,Name,Type,Status,Amount,Currency
+06/01/2024,Uber BV,Payment,Completed,-25.00,USD
+06/02/2024,Netflix Inc,Payment,Completed,-12.99,USD
+06/05/2024,Employer Co,Deposit,Completed,3000.00,USD
+
+FORMAT 3 - Standard Bank Format:
+Trans Date  Value Date  Description         Debit    Credit   Running Balance
+06/01/2024  06/01/2024  POS PURCHASE       25.00             975.00
+06/02/2024  06/02/2024  ONLINE PAYMENT     12.99             962.01
+06/05/2024  06/05/2024  SALARY CREDIT               3000.00  3962.01
+
+FORMAT 4 - International Bank PDF:
 Date: 06/01/2024
 Description: Uber Trip
 Amount: -25.00
+Balance: 975.00
 
 Date: 06/02/2024
 Description: Netflix Subscription
 Amount: -12.99
+Balance: 962.01
 
-Date: 06/05/2024
-Description: Salary June
-Amount: 3000.00
+DATE: 06/05/2024
+DESCRIPTION: Salary June
+AMOUNT: +3000.00
+BALANCE: 3962.01
 
-FORMAT 2 - Tabular with Debit/Credit:
-Date        Description              Debit    Credit
-06/01/2024  Uber Trip               25.00    
-06/02/2024  Netflix Subscription    12.99    
-06/05/2024  Salary June                      3000.00
+FORMAT 5 - Minimalist CSV Format:
+Date,Description,Amount
+06/01/2024,Uber Trip,-25.00
+06/02/2024,Netflix Subscription,-12.99
+06/05/2024,Salary June,3000.00
 
-FORMAT 3 - Bank Statement Format:
-Trans Date  Value Date  Description         Debit    Credit
-06/01/2024  06/01/2024  POS PURCHASE       25.00    
-06/02/2024  06/02/2024  ONLINE PAYMENT     12.99    
-06/05/2024  06/05/2024  SALARY CREDIT               3000.00
+FORMAT 6 - Simple Transaction List:
+06/01/2024 | Uber Trip | -$25.00
+06/02/2024 | Netflix Subscription | -$12.99
+06/05/2024 | Salary June | +$3000.00
 
-FORMAT 4 - CSV-like Format:
-Date,Description,Amount,Category
-06/01/2024,Uber Trip,-25.00,Transport
-06/02/2024,Netflix Subscription,-12.99,Subscriptions
-06/05/2024,Salary June,3000.00,Salary
-
-Note: The system automatically detects your format and processes accordingly.`}
+Note: The system automatically detects your format. Use +/- signs or Debit/Credit columns to indicate transaction direction.`}
                       value={statementText}
                       onChange={(e) => setStatementText(e.target.value)}
                       className="min-h-[300px] font-mono text-sm"
