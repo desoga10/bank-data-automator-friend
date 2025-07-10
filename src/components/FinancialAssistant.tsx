@@ -307,6 +307,7 @@ FORMAT 6 - Simple Transaction List:
 06/01/2024 | Uber Trip | -$25.00
 06/02/2024 | Netflix Subscription | -$12.99
 06/05/2024 | Salary June | +$3000.00
+06/06/2024 | Local Purchase | -₦5000.00
 
 Note: The system automatically detects your format. Use +/- signs or Debit/Credit columns to indicate transaction direction.`}
                       value={statementText}
