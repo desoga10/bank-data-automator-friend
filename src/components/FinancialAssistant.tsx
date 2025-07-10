@@ -5,7 +5,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { FileUpload } from "@/components/FileUpload";
-import { PdfUpload } from "@/components/PdfUpload";
 import { FileManager } from "@/components/FileManager";
 import { DataAnalyzer } from "@/components/DataAnalyzer";
 import { parseStatementText, convertToCsv, parseCsv, Transaction } from "@/utils/csvProcessor";
@@ -47,7 +46,7 @@ export const FinancialAssistant = () => {
     }
   }, [uploadedFiles]);
 
-  const addToFileManager = (csvData: string, fileName: string, type: 'pdf' | 'csv', transactionCount?: number) => {
+  const addToFileManager = (csvData: string, fileName: string, type: 'csv', transactionCount?: number) => {
     const fileData = {
       id: Date.now().toString(),
       name: fileName,
@@ -84,15 +83,6 @@ export const FinancialAssistant = () => {
     });
   };
 
-  const handlePdfConverted = (convertedCsvData: string, convertedFileName: string) => {
-    // Add the converted CSV to file manager
-    addToFileManager(convertedCsvData, convertedFileName, 'csv');
-    
-    toast({
-      title: "PDF converted to CSV",
-      description: `${convertedFileName} is now available in your file manager and CSV upload section.`,
-    });
-  };
 
   const handleParseStatement = async () => {
     if (!statementText.trim()) {
@@ -196,9 +186,8 @@ export const FinancialAssistant = () => {
           /* Input Section */
           <div className="space-y-6">
             <Tabs defaultValue="csv" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="csv">CSV Upload</TabsTrigger>
-                <TabsTrigger value="pdf">PDF Upload</TabsTrigger>
                 <TabsTrigger value="text">Text Input</TabsTrigger>
                 <TabsTrigger value="files">
                   File Manager
@@ -211,20 +200,54 @@ export const FinancialAssistant = () => {
               </TabsList>
               
               <TabsContent value="csv" className="mt-6">
-                <FileUpload
-                  onFileProcessed={handleFileProcessed}
-                  onProcessingStart={() => setIsProcessing(true)}
-                  onProcessingEnd={() => setIsProcessing(false)}
-                />
+                <div className="space-y-6">
+                  <FileUpload
+                    onFileProcessed={handleFileProcessed}
+                    onProcessingStart={() => setIsProcessing(true)}
+                    onProcessingEnd={() => setIsProcessing(false)}
+                  />
+                  
+                  {/* Conversion Guide */}
+                  <Card className="shadow-card border-blue-200 dark:border-blue-800">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                        📋 Don't have a CSV file? Here's how to convert your bank statement:
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">🏦 From Your Bank</h4>
+                          <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+                            <li>• Log into your online banking</li>
+                            <li>• Go to account statements</li>
+                            <li>• Look for "Export" or "Download" options</li>
+                            <li>• Choose CSV or Excel format</li>
+                          </ul>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">🔄 Online Converters</h4>
+                          <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+                            <li>• ILovePDF.com (PDF to CSV)</li>
+                            <li>• SmallPDF.com</li>
+                            <li>• PDF24.org</li>
+                            <li>• Google Sheets (import PDF)</li>
+                          </ul>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                        <p className="text-sm text-green-700 dark:text-green-300">
+                          <strong>💡 Tip:</strong> Your CSV should have columns for Date, Description, and Amount. 
+                          Our system automatically detects different formats!
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </TabsContent>
 
-              <TabsContent value="pdf" className="mt-6">
-                <PdfUpload
-                  onPdfConverted={handlePdfConverted}
-                  onProcessingStart={() => setIsProcessing(true)}
-                  onProcessingEnd={() => setIsProcessing(false)}
-                />
-              </TabsContent>
               
               <TabsContent value="text" className="mt-6">
                 <Card className="shadow-card">
