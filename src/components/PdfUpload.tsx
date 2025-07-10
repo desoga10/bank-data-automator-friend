@@ -88,25 +88,143 @@ export const PdfUpload = ({ onPdfConverted, onProcessingStart, onProcessingEnd }
   };
 
   const convertPdfTextToCsv = (text: string): string => {
-    const lines = text.split('\n').filter(line => line.trim());
-    const csvLines = ['Date,Description,Amount,Type'];
+    console.log('🔍 Raw PDF text:', text.substring(0, 500) + '...');
     
-    // Simple pattern matching for common transaction formats
-    lines.forEach(line => {
-      // Look for date patterns and amounts
-      const dateMatch = line.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
-      const amountMatch = line.match(/[\-\+]?\$?(\d+[\.,]\d{2})/);
-      
-      if (dateMatch && amountMatch) {
-        const date = dateMatch[1];
-        const amount = amountMatch[1].replace(',', '');
-        const description = line.replace(dateMatch[0], '').replace(amountMatch[0], '').trim();
-        const type = amount.startsWith('-') ? 'Debit' : 'Credit';
-        
-        csvLines.push(`${date},"${description}",${amount},${type}`);
-      }
+    const lines = text.split('\n').filter(line => line.trim());
+    const csvLines = ['Date,Description,Amount,Balance'];
+    const transactions: any[] = [];
+    
+    // Remove common headers and noise
+    const cleanLines = lines.filter(line => {
+      const cleanLine = line.trim().toLowerCase();
+      return !cleanLine.includes('transaction reference') &&
+             !cleanLine.includes('value date') &&
+             !cleanLine.includes('description') &&
+             !cleanLine.includes('balance') &&
+             !cleanLine.includes('amount') &&
+             !cleanLine.includes('debit') &&
+             !cleanLine.includes('credit') &&
+             cleanLine.length > 3;
     });
     
+    console.log('🧹 Cleaned lines:', cleanLines.slice(0, 10));
+    
+    let i = 0;
+    while (i < cleanLines.length) {
+      const line = cleanLines[i].trim();
+      
+      // Look for date patterns (various formats)
+      const datePatterns = [
+        /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/,  // DD/MM/YYYY or DD-MM-YYYY
+        /(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/,    // YYYY/MM/DD or YYYY-MM-DD
+        /(\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4})/i, // DD MMM YYYY
+      ];
+      
+      let dateMatch = null;
+      for (const pattern of datePatterns) {
+        dateMatch = line.match(pattern);
+        if (dateMatch) break;
+      }
+      
+      if (dateMatch) {
+        let date = dateMatch[1];
+        let description = '';
+        let amount = 0;
+        let balance = '';
+        
+        // Convert date to YYYY-MM-DD format
+        if (date.includes('/') || date.includes('-')) {
+          const parts = date.split(/[\/\-]/);
+          if (parts[0].length === 4) {
+            // Already YYYY-MM-DD
+            date = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+          } else {
+            // DD/MM/YYYY or MM/DD/YYYY - assume DD/MM/YYYY
+            date = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          }
+        }
+        
+        // Get description and amount from current and next lines
+        let currentLine = line.replace(dateMatch[0], '').trim();
+        let nextLineIndex = i + 1;
+        
+        // Look for amount in current line or next few lines
+        const amountPatterns = [
+          /[\+\-]?\s*[₦\$£€]?\s*([0-9,]+\.?\d{0,2})/g,
+          /([0-9,]+\.?\d{0,2})\s*[₦\$£€]?[\+\-]?/g,
+        ];
+        
+        let foundAmount = false;
+        let searchText = currentLine;
+        
+        // Check current line and next 2 lines for amount
+        for (let j = 0; j < 3 && (i + j) < cleanLines.length; j++) {
+          if (j > 0) {
+            searchText += ' ' + cleanLines[i + j].trim();
+          }
+          
+          for (const pattern of amountPatterns) {
+            const matches = [...searchText.matchAll(pattern)];
+            for (const match of matches) {
+              const potentialAmount = match[1] || match[0];
+              const cleanAmount = potentialAmount.replace(/[₦\$£€,\s]/g, '');
+              
+              if (!isNaN(parseFloat(cleanAmount)) && parseFloat(cleanAmount) > 0) {
+                amount = parseFloat(cleanAmount);
+                
+                // Determine if it's debit or credit
+                const fullMatch = match[0];
+                const beforeAmount = searchText.substring(0, searchText.indexOf(fullMatch));
+                const afterAmount = searchText.substring(searchText.indexOf(fullMatch) + fullMatch.length);
+                
+                // Check for debit indicators
+                if (fullMatch.includes('-') || 
+                    beforeAmount.toLowerCase().includes('debit') ||
+                    beforeAmount.toLowerCase().includes('withdrawal') ||
+                    afterAmount.toLowerCase().includes('dr')) {
+                  amount = -Math.abs(amount);
+                }
+                
+                // Remove amount from description
+                description = searchText.replace(match[0], '').trim();
+                foundAmount = true;
+                nextLineIndex = i + j + 1;
+                break;
+              }
+            }
+            if (foundAmount) break;
+          }
+          if (foundAmount) break;
+        }
+        
+        // Clean up description
+        description = description.replace(/\s+/g, ' ').trim();
+        if (!description) {
+          description = 'Transaction';
+        }
+        
+        if (foundAmount && amount !== 0) {
+          transactions.push({
+            date,
+            description,
+            amount,
+            balance
+          });
+          console.log(`✅ Parsed transaction: ${date} | ${description} | ${amount}`);
+        }
+        
+        i = nextLineIndex;
+      } else {
+        i++;
+      }
+    }
+    
+    // Convert to CSV
+    transactions.forEach(tx => {
+      csvLines.push(`${tx.date},"${tx.description}",${tx.amount},${tx.balance}`);
+    });
+    
+    console.log(`🎉 Extracted ${transactions.length} transactions from PDF`);
     return csvLines.join('\n');
   };
 
