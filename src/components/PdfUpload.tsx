@@ -61,19 +61,30 @@ export const PdfUpload = ({ onPdfConverted, onProcessingStart, onProcessingEnd }
   };
 
   const extractTextFromPdf = async (file: File): Promise<string> => {
-    // For now, we'll use a simplified approach
-    // In a real implementation, you'd use a PDF parsing library like pdf-parse or PDF.js
-    const arrayBuffer = await file.arrayBuffer();
-    const text = new TextDecoder().decode(arrayBuffer);
-    
-    // Extract readable text patterns (very basic approach)
-    const lines = text.split('\n').filter(line => 
-      line.trim().length > 0 && 
-      /[a-zA-Z]/.test(line) && 
-      !line.includes('�')
-    );
-    
-    return lines.join('\n');
+    try {
+      // Import pdf-parse dynamically since it's a Node.js library
+      const pdfParse = await import('pdf-parse');
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = new Uint8Array(arrayBuffer);
+      
+      const pdfData = await pdfParse.default(buffer);
+      return pdfData.text;
+    } catch (error) {
+      console.error('PDF parsing error:', error);
+      // Fallback to basic text extraction for browser compatibility
+      const arrayBuffer = await file.arrayBuffer();
+      const text = new TextDecoder().decode(arrayBuffer);
+      
+      // Extract readable text patterns (basic approach)
+      const lines = text.split('\n').filter(line => 
+        line.trim().length > 0 && 
+        /[a-zA-Z0-9]/.test(line) && 
+        !line.includes('�') &&
+        line.length > 5
+      );
+      
+      return lines.join('\n');
+    }
   };
 
   const convertPdfTextToCsv = (text: string): string => {
