@@ -526,27 +526,15 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="shadow-card">
           <CardContent className="p-6">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-success flex items-center justify-center">
-                <TrendingUp className="text-success-foreground text-sm" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Income</p>
-                <p className="text-2xl font-bold text-success">{formatCurrency(analysis.totalIncome, analysis.currencies[0])}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="shadow-card">
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center">
-                <TrendingDown className="text-destructive text-sm" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Expenses</p>
-                <p className="text-2xl font-bold text-destructive">{formatCurrency(analysis.totalExpenses, analysis.currencies[0])}</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-success flex items-center justify-center">
+                  <TrendingUp className="text-success-foreground text-sm" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Income</p>
+                  <p className="text-2xl font-bold text-success">{formatCurrency(analysis.totalIncome, analysis.currencies[0])}</p>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -554,21 +542,39 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
         
         <Card className="shadow-card">
           <CardContent className="p-6">
-            <div className="flex items-center space-x-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                analysis.netAmount >= 0 ? 'bg-gradient-success' : 'bg-destructive/10'
-              }`}>
-                <DollarSign className={`text-sm ${
-                  analysis.netAmount >= 0 ? 'text-success-foreground' : 'text-destructive'
-                }`} />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <TrendingDown className="text-destructive text-sm" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Expenses</p>
+                  <p className="text-2xl font-bold text-destructive">{formatCurrency(analysis.totalExpenses, analysis.currencies[0])}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Net Amount</p>
-                <p className={`text-2xl font-bold ${
-                  analysis.netAmount >= 0 ? 'text-success' : 'text-destructive'
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="shadow-card">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  analysis.netAmount >= 0 ? 'bg-gradient-success' : 'bg-destructive/10'
                 }`}>
-                  {formatCurrency(analysis.netAmount, analysis.currencies[0])}
-                </p>
+                  <DollarSign className={`text-sm ${
+                    analysis.netAmount >= 0 ? 'text-success-foreground' : 'text-destructive'
+                  }`} />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Net Amount</p>
+                  <p className={`text-2xl font-bold ${
+                    analysis.netAmount >= 0 ? 'text-success' : 'text-destructive'
+                  }`}>
+                    {formatCurrency(analysis.netAmount, analysis.currencies[0])}
+                  </p>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -676,19 +682,19 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={getFilteredChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                       <XAxis dataKey="name" />
-                      <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                      <YAxis tickFormatter={(value) => formatCurrency(value, analysis.currencies[0]).replace(/\.\d+/, '')} />
                       <Tooltip 
                         formatter={(value: any, name: string) => [
-                          formatCurrency(value), 
+                          formatCurrency(value, analysis.currencies[0]), 
                           name === 'income' ? 'Income' : 
-                          name === 'expenses' ? 'Expenses' : 'Net'
+                          name === 'expenses' ? 'Expenses' : 'Net Amount'
                         ]}
                       />
                       <Legend />
                       {chartFilter !== 'expenses' && <Bar dataKey="income" fill="hsl(var(--success))" name="Income" />}
                       {chartFilter !== 'income' && <Bar dataKey="expenses" fill="hsl(var(--destructive))" name="Expenses" />}
                       {(chartFilter === 'all' || chartFilter === 'category' || chartFilter === 'daily' || chartFilter === 'weekly' || chartFilter === 'monthly') && (
-                        <Line type="monotone" dataKey="net" stroke="hsl(var(--primary))" name="Net" strokeWidth={2} />
+                        <Line type="monotone" dataKey="net" stroke="hsl(var(--primary))" name="Net Amount" strokeWidth={2} />
                       )}
                     </ComposedChart>
                   </ResponsiveContainer>
@@ -708,47 +714,45 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <RechartsPieChart>
-                      <RechartsPieChart 
-                        data={Object.entries(analysis.categoryTotals)
-                          .filter(([,data]) => data.expenses > 0)
-                          .map(([category, data], index) => ({
-                            name: category,
-                            value: data.expenses,
-                            fill: [
+                    <RechartsPieChart 
+                      data={Object.entries(analysis.categoryTotals)
+                        .filter(([,data]) => data.expenses > 0)
+                        .map(([category, data], index) => ({
+                          name: category,
+                          value: data.expenses,
+                          fill: [
+                            "hsl(var(--primary))",
+                            "hsl(var(--destructive))", 
+                            "hsl(var(--warning))",
+                            "hsl(var(--success))",
+                            "hsl(var(--secondary))",
+                            "hsl(var(--accent))"
+                          ][index % 6]
+                        }))
+                      }
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      dataKey="value"
+                    >
+                      {Object.entries(analysis.categoryTotals)
+                        .filter(([,data]) => data.expenses > 0)
+                        .map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={[
                               "hsl(var(--primary))",
                               "hsl(var(--destructive))", 
                               "hsl(var(--warning))",
                               "hsl(var(--success))",
                               "hsl(var(--secondary))",
                               "hsl(var(--accent))"
-                            ][index % 6]
-                          }))
-                        }
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        dataKey="value"
-                      >
-                        {Object.entries(analysis.categoryTotals)
-                          .filter(([,data]) => data.expenses > 0)
-                          .map((entry, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={[
-                                "hsl(var(--primary))",
-                                "hsl(var(--destructive))", 
-                                "hsl(var(--warning))",
-                                "hsl(var(--success))",
-                                "hsl(var(--secondary))",
-                                "hsl(var(--accent))"
-                              ][index % 6]}
-                            />
-                          ))
-                        }
-                      </RechartsPieChart>
+                            ][index % 6]}
+                          />
+                        ))
+                      }
                       <Tooltip 
-                        formatter={(value: any) => [formatCurrency(value, analysis.currencies[0]), 'Amount']}
+                        formatter={(value: any) => [formatCurrency(value, analysis.currencies[0]), 'Expenses']}
                       />
                       <Legend />
                     </RechartsPieChart>
@@ -787,11 +791,10 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={getComparisonData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <XAxis dataKey="period" />
-                    <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                    <YAxis yAxisId="left" tickFormatter={(value) => formatCurrency(value, analysis.currencies[0]).replace(/\.\d+/, '')} />
                     <YAxis yAxisId="right" orientation="right" />
                     <Tooltip 
                       formatter={(value: any, name: string) => [
-                        formatCurrency(value, analysis.currencies[0]), 
                         name === 'transactions' ? value : formatCurrency(value, analysis.currencies[0]), 
                         name === 'income' ? 'Income' : 
                         name === 'expenses' ? 'Expenses' : 
