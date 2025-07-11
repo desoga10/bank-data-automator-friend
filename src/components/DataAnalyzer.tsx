@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, TrendingUp, TrendingDown, DollarSign, Calendar, Upload, FileText, Brain, PieChart, BarChart3, Filter, GitCompare as Compare } from "lucide-react";
+import { Download, TrendingUp, TrendingDown, DollarSign, Calendar, Upload, FileText, Brain, PieChart, BarChart3, Filter, GitCompare as Compare, Globe } from "lucide-react";
 import { Transaction } from "@/utils/csvProcessor";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line, Tooltip, Legend, ComposedChart } from "recharts";
@@ -22,12 +22,94 @@ interface DataAnalyzerProps {
 type FilterType = 'all' | 'category' | 'daily' | 'weekly' | 'monthly' | 'income' | 'expenses';
 type ComparisonPeriod = 'month' | 'quarter' | 'year';
 
+// Currency conversion rates (in a real app, these would come from an API)
+const CURRENCY_RATES = {
+  USD: 1,
+  EUR: 0.85,
+  GBP: 0.73,
+  JPY: 110,
+  CAD: 1.25,
+  AUD: 1.35,
+  CHF: 0.92,
+  CNY: 6.45,
+  INR: 74.5,
+  BRL: 5.2,
+  MXN: 20.1,
+  KRW: 1180,
+  SGD: 1.35,
+  HKD: 7.8,
+  NOK: 8.6,
+  SEK: 8.9,
+  DKK: 6.3,
+  PLN: 3.9,
+  CZK: 21.5,
+  HUF: 295,
+  RUB: 73.5,
+  TRY: 8.4,
+  ZAR: 14.2,
+  THB: 31.5,
+  MYR: 4.1,
+  PHP: 49.5,
+  IDR: 14250,
+  VND: 22800,
+  EGP: 15.7,
+  NGN: 411,
+  KES: 108,
+  GHS: 6.1,
+  MAD: 8.9,
+  TND: 2.8,
+  DZD: 134,
+  XOF: 558,
+  XAF: 558
+};
+
+const CURRENCY_INFO = {
+  USD: { symbol: '$', name: 'US Dollar' },
+  EUR: { symbol: '€', name: 'Euro' },
+  GBP: { symbol: '£', name: 'British Pound' },
+  JPY: { symbol: '¥', name: 'Japanese Yen' },
+  CAD: { symbol: 'C$', name: 'Canadian Dollar' },
+  AUD: { symbol: 'A$', name: 'Australian Dollar' },
+  CHF: { symbol: 'CHF', name: 'Swiss Franc' },
+  CNY: { symbol: '¥', name: 'Chinese Yuan' },
+  INR: { symbol: '₹', name: 'Indian Rupee' },
+  BRL: { symbol: 'R$', name: 'Brazilian Real' },
+  MXN: { symbol: '$', name: 'Mexican Peso' },
+  KRW: { symbol: '₩', name: 'South Korean Won' },
+  SGD: { symbol: 'S$', name: 'Singapore Dollar' },
+  HKD: { symbol: 'HK$', name: 'Hong Kong Dollar' },
+  NOK: { symbol: 'kr', name: 'Norwegian Krone' },
+  SEK: { symbol: 'kr', name: 'Swedish Krona' },
+  DKK: { symbol: 'kr', name: 'Danish Krone' },
+  PLN: { symbol: 'zł', name: 'Polish Złoty' },
+  CZK: { symbol: 'Kč', name: 'Czech Koruna' },
+  HUF: { symbol: 'Ft', name: 'Hungarian Forint' },
+  RUB: { symbol: '₽', name: 'Russian Ruble' },
+  TRY: { symbol: '₺', name: 'Turkish Lira' },
+  ZAR: { symbol: 'R', name: 'South African Rand' },
+  THB: { symbol: '฿', name: 'Thai Baht' },
+  MYR: { symbol: 'RM', name: 'Malaysian Ringgit' },
+  PHP: { symbol: '₱', name: 'Philippine Peso' },
+  IDR: { symbol: 'Rp', name: 'Indonesian Rupiah' },
+  VND: { symbol: '₫', name: 'Vietnamese Dong' },
+  EGP: { symbol: 'E£', name: 'Egyptian Pound' },
+  NGN: { symbol: '₦', name: 'Nigerian Naira' },
+  KES: { symbol: 'KSh', name: 'Kenyan Shilling' },
+  GHS: { symbol: '₵', name: 'Ghanaian Cedi' },
+  MAD: { symbol: 'MAD', name: 'Moroccan Dirham' },
+  TND: { symbol: 'TND', name: 'Tunisian Dinar' },
+  DZD: { symbol: 'DZD', name: 'Algerian Dinar' },
+  XOF: { symbol: 'CFA', name: 'West African CFA Franc' },
+  XAF: { symbol: 'CFA', name: 'Central African CFA Franc' }
+};
+
 export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother, onDocumentSelect, uploadedFiles }: DataAnalyzerProps) => {
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'category'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [chartFilter, setChartFilter] = useState<FilterType>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [comparisonPeriod, setComparisonPeriod] = useState<ComparisonPeriod>('month');
+  const [selectedCurrency, setSelectedCurrency] = useState<string>('USD');
 
   const analysis = useMemo(() => {
     const totalIncome = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
@@ -36,7 +118,7 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
     
     // Detect currency from transactions
     const currencies = [...new Set(transactions.map(t => t.currency).filter(Boolean))];
-    const primaryCurrency = currencies[0] || 'USD';
+    const primaryCurrency = currencies[0] || selectedCurrency;
     
     // Category breakdown
     const categoryTotals = transactions.reduce((acc, transaction) => {
@@ -114,7 +196,7 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
       totalIncome,
       totalExpenses,
       netAmount,
-      primaryCurrency,
+      primaryCurrency: selectedCurrency,
       currencies,
       categoryTotals,
       dailyData,
@@ -305,22 +387,46 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
     return colors[category] || "bg-muted text-muted-foreground";
   };
 
-  const formatCurrency = (amount: number) => {
-    const currency = analysis.primaryCurrency || 'USD';
-    const currencySymbols = {
-      'USD': '$',
-      'GBP': '£', 
-      'EUR': '€',
-      'JPY': '¥',
-      'INR': '₹'
-    };
+  // Convert amount from original currency to selected currency
+  const convertCurrency = (amount: number, fromCurrency?: string) => {
+    const from = fromCurrency || 'USD';
+    const to = selectedCurrency;
     
-    const symbol = currencySymbols[currency as keyof typeof currencySymbols] || '$';
+    if (from === to) return amount;
+    
+    // Convert to USD first, then to target currency
+    const usdAmount = amount / (CURRENCY_RATES[from as keyof typeof CURRENCY_RATES] || 1);
+    const convertedAmount = usdAmount * (CURRENCY_RATES[to as keyof typeof CURRENCY_RATES] || 1);
+    
+    return convertedAmount;
+  };
+
+  const formatCurrency = (amount: number, fromCurrency?: string) => {
+    const convertedAmount = convertCurrency(amount, fromCurrency);
+    const currency = selectedCurrency;
+    const currencyInfo = CURRENCY_INFO[currency as keyof typeof CURRENCY_INFO];
+    
+    if (!currencyInfo) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+      }).format(convertedAmount);
+    }
+    
+    // For currencies with special formatting needs
+    if (currency === 'JPY' || currency === 'KRW' || currency === 'VND' || currency === 'IDR') {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(convertedAmount);
+    }
     
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: currency
-    }).format(amount);
+    }).format(convertedAmount);
   };
 
   const formatDate = (dateStr: string) => {
@@ -345,6 +451,30 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
         </div>
         
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          {/* Currency Selector */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium">Display Currency</label>
+            <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  <SelectValue />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                {Object.entries(CURRENCY_INFO).map(([code, info]) => (
+                  <SelectItem key={code} value={code}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm">{info.symbol}</span>
+                      <span>{code}</span>
+                      <span className="text-muted-foreground text-xs">- {info.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Document Selector */}
           {uploadedFiles.length > 1 && (
             <Select
@@ -402,7 +532,7 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Income</p>
-                <p className="text-2xl font-bold text-success">{formatCurrency(analysis.totalIncome)}</p>
+                <p className="text-2xl font-bold text-success">{formatCurrency(analysis.totalIncome, analysis.currencies[0])}</p>
               </div>
             </div>
           </CardContent>
@@ -416,7 +546,7 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Expenses</p>
-                <p className="text-2xl font-bold text-destructive">{formatCurrency(analysis.totalExpenses)}</p>
+                <p className="text-2xl font-bold text-destructive">{formatCurrency(analysis.totalExpenses, analysis.currencies[0])}</p>
               </div>
             </div>
           </CardContent>
@@ -437,7 +567,7 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                 <p className={`text-2xl font-bold ${
                   analysis.netAmount >= 0 ? 'text-success' : 'text-destructive'
                 }`}>
-                  {formatCurrency(analysis.netAmount)}
+                  {formatCurrency(analysis.netAmount, analysis.currencies[0])}
                 </p>
               </div>
             </div>
@@ -618,7 +748,7 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                         }
                       </RechartsPieChart>
                       <Tooltip 
-                        formatter={(value: any) => [formatCurrency(value), 'Amount']}
+                        formatter={(value: any) => [formatCurrency(value, analysis.currencies[0]), 'Amount']}
                       />
                       <Legend />
                     </RechartsPieChart>
@@ -661,7 +791,8 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                     <YAxis yAxisId="right" orientation="right" />
                     <Tooltip 
                       formatter={(value: any, name: string) => [
-                        name === 'transactions' ? value : formatCurrency(value), 
+                        formatCurrency(value, analysis.currencies[0]), 
+                        name === 'transactions' ? value : formatCurrency(value, analysis.currencies[0]), 
                         name === 'income' ? 'Income' : 
                         name === 'expenses' ? 'Expenses' : 
                         name === 'net' ? 'Net Amount' : 'Transactions'
@@ -685,16 +816,16 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                       <div className="space-y-1 text-sm">
                         <div className="flex justify-between">
                           <span>Income:</span>
-                          <span className="text-success font-medium">{formatCurrency(period.income)}</span>
+                          <span className="text-success font-medium">{formatCurrency(period.income, analysis.currencies[0])}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Expenses:</span>
-                          <span className="text-destructive font-medium">{formatCurrency(period.expenses)}</span>
+                          <span className="text-destructive font-medium">{formatCurrency(period.expenses, analysis.currencies[0])}</span>
                         </div>
                         <div className="flex justify-between border-t pt-1">
                           <span>Net:</span>
                           <span className={`font-bold ${period.net >= 0 ? 'text-success' : 'text-destructive'}`}>
-                            {formatCurrency(period.net)}
+                            {formatCurrency(period.net, analysis.currencies[0])}
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -739,6 +870,7 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                   }% of total expenses</p>
                   <p>• You have {analysis.transactionCount} transactions with an average transaction amount of {formatCurrency(
                     transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0) / transactions.length || 0
+                    transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0) / transactions.length || 0, analysis.currencies[0]
                   )}</p>
                   <p>• Your spending-to-income ratio is {analysis.totalIncome > 0 ? (analysis.totalExpenses / analysis.totalIncome * 100).toFixed(1) : '0'}%</p>
                 </div>
@@ -792,11 +924,11 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                       <p>• 📅 Analyzing {Object.entries(analysis.monthlyData).length} months of data</p>
                       <p>• 📊 Average monthly expenses: {formatCurrency(
                         Object.values(analysis.monthlyData).reduce((sum, data) => sum + data.expenses, 0) / 
-                        Object.values(analysis.monthlyData).length
+                        Object.values(analysis.monthlyData).length, analysis.currencies[0]
                       )}</p>
                       <p>• 💰 Average monthly income: {formatCurrency(
                         Object.values(analysis.monthlyData).reduce((sum, data) => sum + data.income, 0) / 
-                        Object.values(analysis.monthlyData).length
+                        Object.values(analysis.monthlyData).length, analysis.currencies[0]
                       )}</p>
                     </>
                   )}
@@ -821,7 +953,7 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                         <p className="font-medium text-sm">{transaction.description}</p>
                         <p className="text-xs text-muted-foreground">{formatDate(transaction.date)}</p>
                       </div>
-                      <p className="font-bold text-destructive">{formatCurrency(transaction.amount)}</p>
+                      <p className="font-bold text-destructive">{formatCurrency(transaction.amount, transaction.currency)}</p>
                     </div>
                   ))}
                 </div>
@@ -841,7 +973,7 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                         <p className="font-medium text-sm">{transaction.description}</p>
                         <p className="text-xs text-muted-foreground">{formatDate(transaction.date)}</p>
                       </div>
-                      <p className="font-bold text-success">{formatCurrency(transaction.amount)}</p>
+                      <p className="font-bold text-success">{formatCurrency(transaction.amount, transaction.currency)}</p>
                     </div>
                   ))}
                 </div>
@@ -872,12 +1004,12 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                     </div>
                     <div className="text-right">
                       <p className={`font-bold ${data.total >= 0 ? 'text-success' : 'text-destructive'}`}>
-                        {formatCurrency(data.total)}
+                        {formatCurrency(data.total, analysis.currencies[0])}
                       </p>
                       <div className="text-xs text-muted-foreground">
-                        {data.income > 0 && <span className="text-success">+{formatCurrency(data.income)}</span>}
+                        {data.income > 0 && <span className="text-success">+{formatCurrency(data.income, analysis.currencies[0])}</span>}
                         {data.income > 0 && data.expenses > 0 && <span> / </span>}
-                        {data.expenses > 0 && <span className="text-destructive">-{formatCurrency(data.expenses)}</span>}
+                        {data.expenses > 0 && <span className="text-destructive">-{formatCurrency(data.expenses, analysis.currencies[0])}</span>}
                       </div>
                     </div>
                   </div>
@@ -904,10 +1036,10 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                       <p className="text-sm text-muted-foreground">{data.count} transactions</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-success">+{formatCurrency(data.income)}</p>
-                      <p className="font-bold text-destructive">-{formatCurrency(data.expenses)}</p>
+                      <p className="font-bold text-success">+{formatCurrency(data.income, analysis.currencies[0])}</p>
+                      <p className="font-bold text-destructive">-{formatCurrency(data.expenses, analysis.currencies[0])}</p>
                       <p className={`text-sm font-medium ${(data.income - data.expenses) >= 0 ? 'text-success' : 'text-destructive'}`}>
-                        Net: {formatCurrency(data.income - data.expenses)}
+                        Net: {formatCurrency(data.income - data.expenses, analysis.currencies[0])}
                       </p>
                     </div>
                   </div>
@@ -995,7 +1127,7 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                         <TableCell className={`text-right font-bold ${
                           transaction.amount >= 0 ? 'text-success' : 'text-destructive'
                         }`}>
-                          {formatCurrency(transaction.amount)}
+                          {formatCurrency(transaction.amount, transaction.currency)}
                         </TableCell>
                         <TableCell>
                           <Badge className={getCategoryColor(transaction.category)}>
