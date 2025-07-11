@@ -869,7 +869,6 @@ export const DataAnalyzer = ({ transactions, csvData, fileName, onUploadAnother,
                     : '0'
                   }% of total expenses</p>
                   <p>• You have {analysis.transactionCount} transactions with an average transaction amount of {formatCurrency(
-                    transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0) / transactions.length || 0
                     transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0) / transactions.length || 0, analysis.currencies[0]
                   )}</p>
                   <p>• Your spending-to-income ratio is {analysis.totalIncome > 0 ? (analysis.totalExpenses / analysis.totalIncome * 100).toFixed(1) : '0'}%</p>
